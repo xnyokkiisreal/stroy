@@ -6,7 +6,6 @@
 
 <p align="center">
   <b><a href="https://xnyokkiisreal.github.io/stroy/">▶ Открыть тюнер / Open the tuner</a></b><br>
-  <sub>Создатель / Made by <b>xnyokki</b></sub>
 </p>
 
 ---
