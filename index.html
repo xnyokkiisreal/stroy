@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stroy">
+<meta name="author" content="xnyokki">
+<meta name="description" content="Гитарный тюнер с альтернативными строями: Drop D, D Standard, Open G и другими. Guitar tuner with alternate tunings.">
+<title>Строй — гитарный тюнер</title>
+<style>
+:root{
+  --bg:#0b0d12; --bg2:#11141b; --card:#151922; --card2:#1b2029; --line:#262c38; --line2:#323a48;
+  --text:#eef1f6; --muted:#8b94a5; --dim:#5d6676;
+  --low:#4cc9ff; --high:#ffb347; --ok:#34e89e; --accent:#ff6a3d; --danger:#ff5d6c;
+  --state:#5d6676;
+  --r:18px;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:15px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ambient glow following tuning state */
+.glow{position:fixed;inset:-20% -20% auto -20%;height:80vh;pointer-events:none;z-index:0;
+  background:radial-gradient(60% 55% at 50% 35%, color-mix(in srgb,var(--state) 22%,transparent), transparent 70%);
+  transition:background .35s ease}
+
+.app{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:calc(12px + var(--safe-t)) 16px calc(14px + var(--safe-b));}
+
+/* header */
+header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#ff9a3d);display:grid;place-items:center;flex:none;box-shadow:0 6px 18px -6px var(--accent)}
+.logo svg{width:22px;height:22px}
+.brand{font-weight:800;font-size:18px;letter-spacing:-.01em}
+.brand small{display:block;font-weight:500;font-size:12px;color:var(--muted);letter-spacing:0}
+header .sp{flex:1}
+.iconbtn{width:42px;height:42px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;transition:background .15s,transform .1s}
+.iconbtn:hover{background:var(--card2)} .iconbtn:active{transform:scale(.94)}
+.iconbtn svg{width:20px;height:20px}
+
+/* tuning chip */
+.tuningChip{width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r);background:var(--card);border:1px solid var(--line);text-align:left;transition:border-color .15s,background .15s}
+.tuningChip:hover{border-color:var(--line2);background:var(--card2)}
+.tuningChip .t1{font-weight:700;font-size:17px}
+.tuningChip .t2{font-size:13px;color:var(--muted);letter-spacing:.04em}
+.tuningChip .chev{margin-left:auto;color:var(--muted)}
+.badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+
+.grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:900px){ .grid{grid-template-columns:1.15fr .85fr;align-items:start} .side{position:sticky;top:14px} }
+
+.card{background:color-mix(in srgb,var(--card) 92%,transparent);border:1px solid var(--line);border-radius:var(--r);padding:16px;backdrop-filter:blur(6px)}
+
+/* meter */
+.meter{position:relative;padding:8px 6px 6px}
+.gauge{width:100%;max-width:520px;display:block;margin:0 auto;overflow:visible}
+.readout{text-align:center;margin-top:2px;position:relative}
+.noteBig{font-size:clamp(64px,17vw,104px);font-weight:850;line-height:.9;letter-spacing:-.04em;transition:color .2s}
+.noteBig sup{font-size:.36em;vertical-align:.95em;margin-left:2px;letter-spacing:0}
+.noteBig sub{font-size:.28em;color:var(--muted);font-weight:650;letter-spacing:0;margin-left:2px}
+.idle .noteBig{color:var(--dim)}
+.subread{direction:ltr;display:flex;justify-content:center;gap:14px;margin-top:8px;font-size:14px;color:var(--muted)}
+.subread b{color:var(--text);font-weight:650}
+.centsTag{font-weight:750;min-width:74px;display:inline-block}
+
+.status{margin:16px auto 4px;max-width:520px;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:14px;
+  background:color-mix(in srgb,var(--state) 13%,var(--card2));border:1px solid color-mix(in srgb,var(--state) 35%,var(--line));transition:background .25s,border-color .25s}
+.status .ico{width:44px;height:44px;border-radius:12px;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--state) 22%,transparent);color:var(--state);transition:color .25s,background .25s}
+.status .ico svg{width:26px;height:26px;transition:transform .3s}
+.status .m1{font-weight:750;font-size:17px;color:color-mix(in srgb,var(--state) 70%,var(--text))}
+.status .m2{font-size:13px;color:var(--muted);margin-top:2px}
+
+/* view toggle + strobe */
+.meter{position:relative}
+.viewSeg{position:absolute;top:12px;inset-inline-end:12px;z-index:2;display:flex;padding:3px;border-radius:10px;background:var(--bg2);border:1px solid var(--line)}
+.viewSeg button{padding:7px 12px;border-radius:7px;font-size:13px;font-weight:650;color:var(--muted);transition:background .15s,color .15s}
+.viewSeg button.on{background:var(--card2);color:var(--text)}
+.strobeWrap{display:none;padding:52px 2px 4px}
+.strobeView .strobeWrap{display:block} .strobeView .gauge{display:none}
+#strobe{width:100%;height:194px;display:block}
+.strobeHint{font-size:12px;color:var(--dim);text-align:center;margin-top:2px}
+/* intonation toggle */
+.togRow{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--card2);border:1px solid transparent;text-align:start}
+.togRow:hover{border-color:var(--line2)}
+.togRow.on{border-color:color-mix(in srgb,var(--accent) 60%,transparent);background:color-mix(in srgb,var(--accent) 8%,var(--card2))}
+.togRow .ti{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--bg2);color:var(--muted);flex:none}
+.togRow.on .ti{color:var(--accent)}
+.togRow b{display:block;font-size:14px} .togRow small{display:block;font-size:12px;color:var(--muted)}
+.togRow .sw{margin-inline-start:auto;pointer-events:none}
+/* trace */
+.traceWrap{margin-top:14px}
+.traceHead{display:flex;align-items:center;gap:12px;margin:0 2px 6px;font-size:11px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase;font-weight:650}
+.traceHead span{display:inline-flex;align-items:center;gap:5px;letter-spacing:.02em;text-transform:none;font-weight:500}
+.traceHead i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.traceWrap canvas{width:100%;height:84px;display:block;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+
+/* strings */
+.sideHead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sideHead h2{font-size:15px;margin:0;font-weight:750}
+.progress{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.ring{width:30px;height:30px}
+.strings{display:flex;flex-direction:column;gap:6px}
+.sRow{position:relative;display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;border:1px solid transparent;background:var(--card2);text-align:left;transition:border-color .15s,background .15s,transform .1s}
+.sRow:hover{border-color:var(--line2)} .sRow:active{transform:scale(.99)}
+.sRow.active{border-color:var(--state);background:color-mix(in srgb,var(--state) 9%,var(--card2))}
+.sNum{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:750;font-size:13px;background:var(--bg2);color:var(--muted);border:1px solid var(--line)}
+.sRow.done .sNum{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+.sMid{position:relative;height:30px;display:flex;align-items:center}
+.wire{position:absolute;left:0;right:0;top:50%;border-radius:4px;background:linear-gradient(90deg,#8d8170,#d9cdb8 40%,#9d917f);transform:translateY(-50%);opacity:.75}
+.sRow.active .wire{animation:vib .07s linear infinite alternate;opacity:1}
+@keyframes vib{from{transform:translateY(calc(-50% - var(--amp,0px)))}to{transform:translateY(calc(-50% + var(--amp,0px)))}}
+.sNote{position:relative;z-index:1;background:var(--card2);padding:0 8px 0 0;font-weight:800;font-size:19px;letter-spacing:-.01em}
+.sRow.active .sNote{background:color-mix(in srgb,var(--state) 9%,var(--card2))}
+.sNote small{font-size:11px;color:var(--muted);font-weight:600;margin-left:1px}
+.sHz{position:relative;z-index:1;margin-left:auto;background:inherit;font-size:11px;color:var(--dim);padding-left:6px}
+.sRow .sHz{background:var(--card2)} .sRow.active .sHz{background:color-mix(in srgb,var(--state) 9%,var(--card2))}
+.chg{font-size:12px;font-weight:750;padding:4px 8px;border-radius:8px;min-width:64px;text-align:center}
+.chg.down{color:var(--low);background:color-mix(in srgb,var(--low) 12%,transparent)}
+.chg.up{color:var(--high);background:color-mix(in srgb,var(--high) 12%,transparent)}
+.chg.same{color:var(--dim);background:var(--bg2)}
+.sRow.done .chg{color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+.changeNote{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.5}
+.changeNote b{color:var(--text)}
+
+.seg{display:flex;padding:4px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;margin-top:12px}
+.seg button{flex:1;padding:8px 6px;border-radius:9px;font-size:13px;font-weight:650;color:var(--muted);transition:background .15s,color .15s}
+.seg button.on{background:var(--card2);color:var(--text);box-shadow:0 1px 0 var(--line2) inset}
+.resetLink{font-size:12px;color:var(--muted);text-decoration:underline;margin-top:10px}
+
+/* dock */
+.dock{position:sticky;bottom:0;z-index:20;margin:0 -16px;padding:18px 16px calc(12px + var(--safe-b));
+  background:linear-gradient(to top,var(--bg) 55%,transparent);display:flex;justify-content:center;pointer-events:none}
+/* footer */
+.siteFooter{margin-top:4px;padding:18px 4px 0;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;font-size:12.5px;color:var(--dim);text-align:center}
+.siteFooter b{color:var(--muted);font-weight:700}
+.dockIn{pointer-events:auto;display:flex;align-items:center;gap:10px;padding:8px;border-radius:24px;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);backdrop-filter:blur(14px);box-shadow:0 18px 40px -18px #000}
+.dBtn{height:52px;min-width:52px;padding:0 14px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:650;font-size:14px;color:var(--muted);transition:background .15s,color .15s,transform .1s}
+.dBtn:hover{background:var(--card2);color:var(--text)} .dBtn:active{transform:scale(.95)}
+.dBtn svg{width:22px;height:22px}
+.dBtn.playing{color:var(--accent)}
+.mic{height:60px;padding:0 24px;border-radius:18px;background:var(--accent);color:#1d0b04;font-weight:800;font-size:16px;box-shadow:0 10px 26px -10px var(--accent);position:relative}
+.mic:hover{background:#ff7d55;color:#1d0b04}
+.mic.on{background:var(--card2);color:var(--text);box-shadow:none;border:1px solid var(--line2)}
+.mic .lvl{position:absolute;left:10px;right:10px;bottom:6px;height:3px;border-radius:2px;background:var(--line);overflow:hidden;display:none}
+.mic.on .lvl{display:block}
+.mic .lvl i{display:block;height:100%;width:0;background:var(--ok);border-radius:2px}
+@media (max-width:420px){ .dBtn .lbl{display:none} .mic{padding:0 18px} }
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(3,5,9,.6);backdrop-filter:blur(3px);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;z-index:50;left:50%;bottom:0;width:min(640px,100%);max-height:88vh;display:flex;flex-direction:column;
+  background:var(--card);border:1px solid var(--line);border-bottom:0;border-radius:24px 24px 0 0;transform:translate(-50%,105%);transition:transform .28s cubic-bezier(.2,.9,.25,1);padding-bottom:var(--safe-b)}
+.sheet.show{transform:translate(-50%,0)}
+@media (min-width:700px){ .sheet{bottom:auto;top:50%;border-radius:24px;border-bottom:1px solid var(--line);transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:transform .22s,opacity .22s}
+  .sheet.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto} }
+.sheetHead{padding:14px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.sheetHead h3{margin:0;font-size:17px}
+.sheetHead .sp{flex:1}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--line2);margin:8px auto 0}
+@media (min-width:700px){.grab{display:none}}
+.sheetBody{overflow:auto;padding:12px 16px 18px;overscroll-behavior:contain}
+.search{width:100%;padding:12px 14px 12px 40px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);color:var(--text);font-size:16px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%238b94a5' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='m16 16-3.5-3.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:13px 50%}
+.cats{display:flex;gap:6px;overflow-x:auto;padding:10px 0 4px;scrollbar-width:none}
+.cats button{flex:none;padding:7px 12px;border-radius:99px;border:1px solid var(--line);font-size:13px;color:var(--muted);font-weight:600}
+.cats button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+.tList{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.tItem{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:14px;background:var(--card2);border:1px solid transparent;text-align:left;width:100%}
+.tItem:hover{border-color:var(--line2)}
+.tItem.cur{border-color:var(--accent)}
+.tItem .n{font-weight:700}
+.tItem .ns{font-size:12px;color:var(--muted);letter-spacing:.05em;margin-top:2px}
+.tItem .ns em{font-style:normal;color:var(--low)} .tItem .ns i{font-style:normal;color:var(--high)}
+.tItem .r{margin-left:auto;display:flex;align-items:center;gap:6px}
+.star{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--dim)}
+.star.on{color:#ffd44d} .star svg{width:18px;height:18px}
+.grpLbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:14px 2px 2px;font-weight:700}
+.empty{color:var(--muted);text-align:center;padding:24px 0}
+.primary{width:100%;padding:13px;border-radius:14px;background:var(--accent);color:#1d0b04;font-weight:800;margin-top:12px}
+.ghost{width:100%;padding:12px;border-radius:14px;border:1px dashed var(--line2);color:var(--muted);font-weight:650;margin-top:12px}
+.ghost:hover{color:var(--text);border-color:var(--muted)}
+
+/* settings */
+.set{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.set:last-child{border-bottom:0}
+.set .l{flex:1}
+.set .l b{display:block;font-weight:650}
+.set .l span{font-size:12px;color:var(--muted)}
+.stepper{display:flex;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:12px}
+.stepper button{width:38px;height:38px;font-size:18px;color:var(--muted)}
+.stepper button:hover{color:var(--text)}
+.stepper output{min-width:64px;text-align:center;font-weight:700}
+select.sel{background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:9px 10px;font-size:14px;max-width:210px}
+.sw{width:50px;height:30px;border-radius:99px;background:var(--line2);position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw[aria-checked=true]{background:var(--ok)} .sw[aria-checked=true]::after{transform:translateX(20px)}
+input[type=range]{width:150px;accent-color:var(--accent)}
+
+/* editor */
+.edRow{display:grid;grid-template-columns:44px 1fr;align-items:center;gap:10px;padding:6px 0}
+.edRow .sNum{width:34px;height:34px}
+.edName{width:100%;padding:12px 14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);color:var(--text);font-size:16px;margin-bottom:8px}
+
+/* toast */
+.toast{position:fixed;left:50%;top:calc(16px + var(--safe-t));z-index:60;transform:translate(-50%,-140%);padding:12px 18px;border-radius:14px;background:var(--card2);border:1px solid var(--line2);font-weight:650;box-shadow:0 20px 40px -20px #000;transition:transform .3s cubic-bezier(.2,.9,.25,1);max-width:92vw;text-align:center}
+.toast.show{transform:translate(-50%,0)}
+.err{color:var(--danger);font-size:13px;text-align:center;margin-top:10px;display:none}
+.err.show{display:block}
+
+.help{margin-top:14px}
+.help summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;gap:8px}
+.help summary::-webkit-details-marker{display:none}
+.help summary::after{content:"+";margin-left:auto;color:var(--muted);font-size:20px;font-weight:400}
+.help[open] summary::after{content:"–"}
+.help ul{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px;line-height:1.55}
+.help li{margin-bottom:6px} .help b{color:var(--text)}
+kbd{font:12px ui-monospace,monospace;padding:1px 6px;border-radius:5px;border:1px solid var(--line2);background:var(--bg2);color:var(--text)}
+
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<div class="glow" id="glow"></div>
+
+<div class="app">
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#1d0b04" stroke-width="2.4" stroke-linecap="round"><path d="M4 18c3-8 13-8 16 0"/><path d="M12 18 15 8"/></svg></div>
+    <div class="brand"><span data-i="appName">Строй</span><small data-i="appSub">гитарный тюнер</small></div>
+    <div class="sp"></div>
+    <button class="iconbtn" id="openSettings" data-ia="settings" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+  </header>
+
+  <div class="grid">
+    <main>
+      <button class="tuningChip" id="openPicker" data-ia="chooseTuning" aria-label="Выбрать строй">
+        <div>
+          <div class="t1" id="tName">Стандарт E</div>
+          <div class="t2 num" id="tNotes">E A D G B E</div>
+        </div>
+        <span class="badge" id="tCount">6 струн</span>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+
+      <div class="card meter idle" id="meter" style="margin-top:14px">
+        <div class="viewSeg"><button id="vNeedle" class="on" data-i="viewNeedle">Стрелка</button><button id="vStrobe" data-i="viewStrobe">Строб</button></div>
+        <div class="strobeWrap"><canvas id="strobe"></canvas><div class="strobeHint" data-i="strobeHint"></div></div>
+        <svg class="gauge" id="gauge" viewBox="0 10 400 232" direction="ltr" style="direction:ltr" aria-hidden="true">
+          <defs>
+            <linearGradient id="arcG" x1="0" x2="1">
+              <stop offset="0" stop-color="#4cc9ff" stop-opacity=".9"/>
+              <stop offset=".5" stop-color="#34e89e"/>
+              <stop offset="1" stop-color="#ffb347" stop-opacity=".9"/>
+            </linearGradient>
+            <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+          </defs>
+          <path id="arcBg" fill="none" stroke="#1f2530" stroke-width="26" stroke-linecap="round"/>
+          <path id="arcCol" fill="none" stroke="url(#arcG)" stroke-width="4" stroke-linecap="round" opacity=".55"/>
+          <path id="okZone" fill="none" stroke="#34e89e" stroke-width="26" stroke-linecap="butt" opacity=".16"/>
+          <g id="ticks"></g>
+          <g id="tickLbls" font-size="12" fill="#5d6676" text-anchor="middle" font-weight="600"></g>
+          <g id="needle">
+            <line x1="200" y1="210" x2="200" y2="52" style="stroke:var(--state)" stroke-width="10" stroke-linecap="round" opacity=".35" filter="url(#soft)"/>
+            <line x1="200" y1="210" x2="200" y2="52" stroke="#eef1f6" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="200" cy="52" r="6" style="fill:var(--state)"/>
+          </g>
+          <circle cx="200" cy="210" r="11" fill="#151922" stroke="#eef1f6" stroke-width="3"/>
+          <text id="flatLbl" x="34" y="234" font-size="13" fill="#4cc9ff" font-weight="700" text-anchor="middle" data-i="low">♭ низко</text>
+          <text id="sharpLbl" x="366" y="234" font-size="13" fill="#ffb347" font-weight="700" text-anchor="middle" data-i="high">высоко ♯</text>
+        </svg>
+        <div class="readout">
+          <div class="noteBig" id="noteBig">–</div>
+          <div class="subread num">
+            <span class="centsTag" id="centsTag">— ц</span>
+            <span id="hzTag"><b>—</b> Гц</span>
+            <span id="tgtTag">цель —</span>
+          </div>
+        </div>
+
+        <div class="status" id="status">
+          <div class="ico" id="stIco"></div>
+          <div><div class="m1" id="st1">Включи микрофон</div><div class="m2" id="st2">и дёрни открытую струну</div></div>
+        </div>
+        <div class="err" id="err"></div>
+
+        <div class="traceWrap">
+          <div class="traceHead"><span data-i="history" style="letter-spacing:.06em;text-transform:uppercase;font-weight:650">История</span><span style="margin-inline-start:auto"><i style="background:var(--high)"></i><b data-i="lgHigh" style="font-weight:500">выше</b></span><span><i style="background:var(--ok)"></i><b data-i="lgOk" style="font-weight:500">в строю</b></span><span><i style="background:var(--low)"></i><b data-i="lgLow" style="font-weight:500">ниже</b></span></div>
+          <canvas id="trace"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <aside class="side">
+      <div class="card">
+        <div class="sideHead">
+          <h2 data-i="stringsTitle">Струны</h2>
+          <div class="progress num"><span id="progTxt">0 / 6</span>
+            <svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#262c38" stroke-width="4"/><circle id="progArc" cx="18" cy="18" r="15" fill="none" stroke="#34e89e" stroke-width="4" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="94.25" transform="rotate(-90 18 18)" style="transition:stroke-dashoffset .4s"/></svg>
+          </div>
+        </div>
+        <div class="strings" id="strings"></div>
+        <div class="seg" role="tablist">
+          <button id="mAuto" class="on" role="tab" data-i="mAuto">Авто</button>
+          <button id="mGuided" role="tab" data-i="mGuided">По порядку</button>
+          <button id="mManual" role="tab" data-i="mManual">Одна струна</button>
+        </div>
+        <div class="changeNote" id="changeNote"></div>
+        <button class="togRow" id="intonBtn" aria-pressed="false"><span class="ti"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg></span><span><b data-i="inton">Проверка мензуры</b><small data-i="intonSub"></small></span><span class="sw" id="intonSw" aria-checked="false"></span></button>
+        <button class="resetLink" id="resetDone" data-i="resetMarks">Сбросить отметки</button>
+
+        <details class="help">
+          <summary data-i="howTitle">Как настроить</summary>
+          <ul data-ih="howHtml"></ul>
+        </details>
+        <details class="help">
+          <summary data-i="connTitle">Как подключить электрогитару</summary>
+          <ul data-ih="connHtml"></ul>
+        </details>
+      </div>
+    </aside>
+  </div>
+<!-- dock -->
+  <div class="dock">
+    <div class="dockIn">
+      <button class="dBtn" id="refBtn" data-it="refTitle" title="Эталонный звук (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg><span class="lbl" data-i="ref">Эталон</span></button>
+      <button class="dBtn mic" id="micBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span id="micTxt">Начать</span><span class="lvl"><i id="lvl"></i></span></button>
+      <button class="dBtn" id="pickBtn2" data-it="tuningsTitle" title="Строи (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span class="lbl" data-i="tunings">Строи</span></button>
+    </div>
+  </div>
+  <footer class="siteFooter"><span>© <span id="year">2026</span> Stroy</span><span id="credit">Создатель: <b>xnyokki</b></span></footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- tuning picker -->
+<section class="sheet" id="picker" role="dialog" data-ia="pickTitle" aria-label="Выбор строя">
+  <div class="grab"></div>
+  <div class="sheetHead"><h3 data-i="pickTitle">Выбери строй</h3><div class="sp"></div><button class="iconbtn" data-close data-ia="close" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="sheetBody">
+    <input class="search" id="search" data-ip="searchPh" placeholder="Поиск: drop, C#, open…" autocomplete="off">
+    <div class="cats" id="cats"></div>
+    <div class="tList" id="tList"></div>
+    <button class="ghost" id="newCustom" data-i="newCustom">＋ Создать свой строй</button>
+  </div>
+</section>
+
+<!-- editor -->
+<section class="sheet" id="editor" role="dialog" data-ia="edCustom" aria-label="Свой строй">
+  <div class="grab"></div>
+  <div class="sheetHead"><h3 id="edTitle">Свой строй</h3><div class="sp"></div><button class="iconbtn" data-close data-ia="close" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="sheetBody">
+    <input class="edName" id="edName" data-ip="namePh" placeholder="Название, например «Моя песня»" maxlength="40">
+    <div class="seg" style="margin:0 0 8px"><button id="ed6" class="on" data-i="s6">6 струн</button><button id="ed7" data-i="s7">7 струн</button></div>
+    <div id="edRows"></div>
+    <button class="primary" id="edSave" data-i="saveSel">Сохранить и выбрать</button>
+    <button class="ghost" id="edDelete" style="display:none;border-color:color-mix(in srgb,var(--danger) 50%,transparent);color:var(--danger)" data-i="deleteT">Удалить этот строй</button>
+  </div>
+</section>
+
+<!-- settings -->
+<section class="sheet" id="settings" role="dialog" data-ia="settings" aria-label="Настройки">
+  <div class="grab"></div>
+  <div class="sheetHead"><h3 data-i="settings">Настройки</h3><div class="sp"></div><button class="iconbtn" data-close data-ia="close" aria-label="Закрыть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="sheetBody">
+    <div class="set"><div class="l"><b data-i="langT">Язык</b><span data-i="langSub">Язык интерфейса</span></div><select class="sel" id="langSel"></select></div>
+    <div class="set"><div class="l"><b data-i="micT">Микрофон</b><span data-i="micSub">Встроенный или аудиоинтерфейс</span></div><select class="sel" id="devSel"><option value="" data-i="defaultDev">По умолчанию</option></select></div>
+    <div class="set"><div class="l"><b data-i="a4T">Частота A4</b><span data-i="a4Sub">Обычно 440 Гц</span></div>
+      <div class="stepper"><button id="a4m" data-ia="less" aria-label="меньше">−</button><output id="a4o" class="num">440 Гц</output><button id="a4p" data-ia="more" aria-label="больше">+</button></div></div>
+    <div class="set"><div class="l"><b data-i="tolT">Точность</b><span data-i="tolSub">Насколько близко считать «в строю»</span></div>
+      <select class="sel" id="tolSel"><option value="2" data-i="tolStudio">±2 ц — студия</option><option value="4" selected data-i="tolPrecise">±4 ц — точно</option><option value="7" data-i="tolFast">±7 ц — быстро</option></select></div>
+    <div class="set"><div class="l"><b data-i="sensT">Чувствительность</b><span data-i="sensSub">Выше — ловит тихий звук, но и шум</span></div><input type="range" id="sens" min="1" max="10" value="6"></div>
+    <div class="set"><div class="l"><b data-i="vibT">Вибрация</b><span data-i="vibSub">Отклик, когда струна в строю (Android)</span></div><button class="sw" id="swVib" role="switch" aria-checked="true"></button></div>
+    <div class="set"><div class="l"><b data-i="wakeT">Не гасить экран</b><span data-i="wakeSub">Пока работает микрофон</span></div><button class="sw" id="swWake" role="switch" aria-checked="true"></button></div>
+    <div class="set"><div class="l"><b data-i="clickT">Звук «в строю»</b><span data-i="clickSub">Короткий щелчок, когда струна настроена</span></div><button class="sw" id="swClick" role="switch" aria-checked="false"></button></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LANGS=[['ru','Русский'],['uk','Українська'],['en','English'],['fr','Français'],['de','Deutsch'],['es','Español'],['pt','Português'],['it','Italiano'],['pl','Polski'],['tr','Türkçe'],['zh','中文'],['ja','日本語'],['ko','한국어'],['ar','العربية'],['hi','हिन्दी']];
+const I18N={
+ru:{title:'Строй — гитарный тюнер',appName:'Строй',appSub:'гитарный тюнер',settings:'Настройки',chooseTuning:'Выбрать строй',close:'Закрыть',low:'♭ низко',high:'высоко ♯',cents:'ц',hz:'Гц',target:'цель',history:'История',lgHigh:'выше',lgOk:'в строю',lgLow:'ниже',stringsTitle:'Струны',nStrings:'{n} струн',mAuto:'Авто',mGuided:'По порядку',mManual:'Одна струна',resetMarks:'Сбросить отметки',doneChip:'✓ готово',sameChip:'как в станд.',semi:'пт',stdShort:'станд.',fromStdNone:'Это стандартный строй — ничего не меняй, только подстрой.',fromStd:'Из стандарта:',sShort:'{n}-я',loosenBy:'ослабить на {n} пт',tightenBy:'подтянуть на {n} пт',
+howTitle:'Как настроить',howHtml:'<li>Цветная метка у струны показывает, насколько её сдвинуть от стандарта: <b style="color:var(--low)">−2</b> — ослабить на 2 полутона, <b style="color:var(--high)">+1</b> — подтянуть.</li><li>Дёрни <b>одну открытую</b> струну и дай ей звучать. Остальные приглуши ладонью.</li><li>Стрелка <b style="color:var(--low)">слева</b> — струна звучит ниже, подтягивай. Стрелка <b style="color:var(--high)">справа</b> — звучит выше, ослабляй.</li><li>Для одного полутона колок обычно поворачивают примерно на ¼–½ оборота. Это ориентир, а не точное значение.</li><li>Лучше подходить к ноте <b>снизу вверх</b>: если перетянул, ослабь чуть ниже и подтяни снова.</li><li>Режим <b>«По порядку»</b> сам переключает на следующую струну, когда текущая настроена.</li><li>Клавиши: <kbd>Пробел</kbd> — микрофон, <kbd>1</kbd>–<kbd>7</kbd> — струна, <kbd>R</kbd> — эталон, <kbd>T</kbd> — строи.</li>',
+connTitle:'Как подключить электрогитару',connHtml:'<li><b>Через комбик:</b> положи телефон или ноутбук рядом с динамиком.</li><li><b>Без комбика:</b> поднеси микрофон к звукоснимателям. Открытые струны обычно слышно достаточно.</li><li><b>Аудиоинтерфейс</b> (iRig, Focusrite и т.п.) — самый точный вариант. Выбери его в настройках, в пункте «Микрофон».</li>',
+refTitle:'Эталонный звук (R)',ref:'Эталон',start:'Начать',stop:'Стоп',tuningsTitle:'Строи (T)',tunings:'Строи',pickTitle:'Выбери строй',searchPh:'Поиск: drop, C#, open…',newCustom:'＋ Создать свой строй',empty:'Ничего не нашлось. Можно создать свой строй ↓',cAll:'Все',cFav:'★ Избранные',cStd:'Стандартные',cDrop:'Drop',cOpen:'Открытые',c7:'7 струн',cOther:'Другие',cCustom:'Мои',edCustom:'Свой строй',edEdit:'Изменить строй',namePh:'Название, например «Моя песня»',s6:'6 струн',s7:'7 струн',saveSel:'Сохранить и выбрать',deleteT:'Удалить этот строй',edit:'Изменить',fav:'В избранное',lower:'ниже',higher:'выше',
+micT:'Микрофон',micSub:'Встроенный или аудиоинтерфейс',defaultDev:'По умолчанию',micN:'Микрофон {n}',a4T:'Частота A4',a4Sub:'Обычно 440 Гц',less:'меньше',more:'больше',tolT:'Точность',tolSub:'Насколько близко считать «в строю»',tolStudio:'±2 ц — студия',tolPrecise:'±4 ц — точно',tolFast:'±7 ц — быстро',sensT:'Чувствительность',sensSub:'Выше — ловит тихий звук, но и шум',vibT:'Вибрация',vibSub:'Отклик, когда струна в строю (Android)',wakeT:'Не гасить экран',wakeSub:'Пока работает микрофон',clickT:'Звук «в строю»',clickSub:'Короткий щелчок, когда струна настроена',langT:'Язык',langSub:'Язык интерфейса',
+listening:'Слушаю…',pluckAny:'дёрни любую открытую струну',pluckN:'дёрни {n}-ю струну ({note})',nowN:'Теперь {n}-я струна → {note}',whenReady:'дёрни её, когда будешь готов',inTune:'{n}-я струна в строю',allDone:'все струны настроены 🎉',guidedNext:'держи звук — сейчас перейдём к следующей',canNext:'можно переходить к следующей струне',tighten:'Подтяни {n}-ю струну',loosen:'Ослабь {n}-ю струну',soundsLow:'звучит ниже нужного',soundsHigh:'звучит выше нужного',moreSemis:'ещё {s} пт · примерно {a}–{b} оборота колка',bit:'немного, на ⅛ оборота или меньше',tiny:'совсем чуть-чуть, едва касаясь колка',pressStart:'Нажми «Начать»',idleSub:'и дёрни открытую струну. Цель: {n}-я — {note}',toastTuned:'🤘 Гитара в строю: {t}',toastTuning:'Строй: {t}',toastRef:'Эталон: {n}-я струна — {note}',saved:'Сохранено: {t}',deleted:'Строй удалён',myTuning:'Мой строй',errDenied:'Браузер не дал доступ к микрофону. Нажми на значок замка или микрофона у адресной строки, разреши доступ и попробуй ещё раз.',errMic:'Не получилось включить микрофон: ',errNoApi:'Этот браузер не даёт доступ к микрофону. Открой страницу в Chrome, Edge или Safari.',allFourths:'Все кварты',dStd:'обычный строй',dHalf:'на полтона ниже',dWhole:'на тон ниже',dDropD:'6-я струна на тон ниже',dSlide:'слайд, блюз',dCeltic:'кельтский, фингерстайл',dNash:'струны с 12-струнки',dMine:'мой строй'},
+
+uk:{title:'Стрій — гітарний тюнер',appName:'Стрій',appSub:'гітарний тюнер',settings:'Налаштування',chooseTuning:'Вибрати стрій',close:'Закрити',low:'♭ низько',high:'високо ♯',cents:'ц',hz:'Гц',target:'ціль',history:'Історія',lgHigh:'вище',lgOk:'у строї',lgLow:'нижче',stringsTitle:'Струни',nStrings:'{n} струн',mAuto:'Авто',mGuided:'По черзі',mManual:'Одна струна',resetMarks:'Скинути позначки',doneChip:'✓ готово',sameChip:'як у станд.',semi:'пт',stdShort:'станд.',fromStdNone:'Це стандартний стрій — нічого не змінюй, лише підлаштуй.',fromStd:'Від стандарту:',sShort:'{n}-а',loosenBy:'послабити на {n} пт',tightenBy:'підтягнути на {n} пт',
+howTitle:'Як налаштувати',howHtml:'<li>Кольорова позначка біля струни показує, на скільки її зсунути від стандарту: <b style="color:var(--low)">−2</b> — послабити на 2 півтони, <b style="color:var(--high)">+1</b> — підтягнути.</li><li>Смикни <b>одну відкриту</b> струну й дай їй звучати. Інші приглуши долонею.</li><li>Стрілка <b style="color:var(--low)">ліворуч</b> — звучить нижче, підтягуй. <b style="color:var(--high)">Праворуч</b> — вище, послаблюй.</li><li>На один півтон кілок зазвичай повертають приблизно на ¼–½ оберту. Це орієнтир.</li><li>Краще підходити до ноти <b>знизу вгору</b>: якщо перетягнув, послаб трохи нижче й підтягни знову.</li><li>Режим <b>«По черзі»</b> сам перемикає на наступну струну.</li><li>Клавіші: <kbd>Пробіл</kbd> — мікрофон, <kbd>1</kbd>–<kbd>7</kbd> — струна, <kbd>R</kbd> — еталон, <kbd>T</kbd> — строї.</li>',
+connTitle:'Як підключити електрогітару',connHtml:'<li><b>Через комбік:</b> поклади телефон або ноутбук біля динаміка.</li><li><b>Без комбіка:</b> піднеси мікрофон до звукознімачів.</li><li><b>Аудіоінтерфейс</b> (iRig, Focusrite тощо) — найточніше. Обери його в налаштуваннях, пункт «Мікрофон».</li>',
+refTitle:'Еталонний звук (R)',ref:'Еталон',start:'Почати',stop:'Стоп',tuningsTitle:'Строї (T)',tunings:'Строї',pickTitle:'Обери стрій',searchPh:'Пошук: drop, C#, open…',newCustom:'＋ Створити свій стрій',empty:'Нічого не знайдено. Можна створити свій стрій ↓',cAll:'Усі',cFav:'★ Обрані',cStd:'Стандартні',cDrop:'Drop',cOpen:'Відкриті',c7:'7 струн',cOther:'Інші',cCustom:'Мої',edCustom:'Свій стрій',edEdit:'Змінити стрій',namePh:'Назва, напр. «Моя пісня»',s6:'6 струн',s7:'7 струн',saveSel:'Зберегти й вибрати',deleteT:'Видалити цей стрій',edit:'Змінити',fav:'В обране',lower:'нижче',higher:'вище',
+micT:'Мікрофон',micSub:'Вбудований або аудіоінтерфейс',defaultDev:'За замовчуванням',micN:'Мікрофон {n}',a4T:'Частота A4',a4Sub:'Зазвичай 440 Гц',less:'менше',more:'більше',tolT:'Точність',tolSub:'Наскільки близько вважати «у строї»',tolStudio:'±2 ц — студія',tolPrecise:'±4 ц — точно',tolFast:'±7 ц — швидко',sensT:'Чутливість',sensSub:'Вище — ловить тихий звук, але й шум',vibT:'Вібрація',vibSub:'Відгук, коли струна в строї (Android)',wakeT:'Не вимикати екран',wakeSub:'Поки працює мікрофон',clickT:'Звук «у строї»',clickSub:'Короткий клац, коли струна налаштована',langT:'Мова',langSub:'Мова інтерфейсу',
+listening:'Слухаю…',pluckAny:'смикни будь-яку відкриту струну',pluckN:'смикни {n}-у струну ({note})',nowN:'Тепер {n}-а струна → {note}',whenReady:'смикни її, коли будеш готовий',inTune:'{n}-а струна в строї',allDone:'усі струни налаштовано 🎉',guidedNext:'тримай звук — зараз перейдемо далі',canNext:'можна переходити до наступної струни',tighten:'Підтягни {n}-у струну',loosen:'Послаб {n}-у струну',soundsLow:'звучить нижче потрібного',soundsHigh:'звучить вище потрібного',moreSemis:'ще {s} пт · приблизно {a}–{b} оберту кілка',bit:'трохи, на ⅛ оберту або менше',tiny:'зовсім трішки, ледь торкаючись кілка',pressStart:'Натисни «Почати»',idleSub:'і смикни відкриту струну. Ціль: {n}-а — {note}',toastTuned:'🤘 Гітара в строї: {t}',toastTuning:'Стрій: {t}',toastRef:'Еталон: {n}-а струна — {note}',saved:'Збережено: {t}',deleted:'Стрій видалено',myTuning:'Мій стрій',errDenied:'Браузер не дав доступ до мікрофона. Натисни значок замка чи мікрофона біля адресного рядка, дозволь доступ і спробуй ще раз.',errMic:'Не вдалося увімкнути мікрофон: ',errNoApi:'Цей браузер не дає доступу до мікрофона. Відкрий сторінку в Chrome, Edge або Safari.',allFourths:'Усі кварти',dStd:'звичайний стрій',dHalf:'на півтону нижче',dWhole:'на тон нижче',dDropD:'6-а струна на тон нижче',dSlide:'слайд, блюз',dCeltic:'кельтський, фінгерстайл',dNash:'струни з 12-струнної',dMine:'мій стрій'},
+
+en:{title:'Stroy — guitar tuner',appName:'Stroy',appSub:'guitar tuner',settings:'Settings',chooseTuning:'Choose tuning',close:'Close',low:'♭ flat',high:'sharp ♯',cents:'¢',hz:'Hz',target:'target',history:'History',lgHigh:'sharp',lgOk:'in tune',lgLow:'flat',stringsTitle:'Strings',nStrings:'{n} strings',mAuto:'Auto',mGuided:'In order',mManual:'One string',resetMarks:'Reset marks',doneChip:'✓ done',sameChip:'as standard',semi:'st',stdShort:'std',fromStdNone:'This is standard tuning — nothing to change, just fine-tune.',fromStd:'From standard:',sShort:'#{n}',loosenBy:'lower by {n} st',tightenBy:'raise by {n} st',
+howTitle:'How to tune',howHtml:'<li>The coloured tag on each string shows how far to move it from standard: <b style="color:var(--low)">−2</b> = lower by 2 semitones, <b style="color:var(--high)">+1</b> = raise.</li><li>Pluck <b>one open</b> string and let it ring. Mute the others with your palm.</li><li>Needle <b style="color:var(--low)">left</b> — the string is flat, tighten it. Needle <b style="color:var(--high)">right</b> — sharp, loosen it.</li><li>One semitone is usually about ¼–½ turn of the tuning peg. It is a rough guide.</li><li>Approach the note <b>from below</b>: if you overshoot, go a bit lower and tune up again.</li><li><b>“In order”</b> mode moves to the next string automatically.</li><li>Keys: <kbd>Space</kbd> — mic, <kbd>1</kbd>–<kbd>7</kbd> — string, <kbd>R</kbd> — reference, <kbd>T</kbd> — tunings.</li>',
+connTitle:'Connecting an electric guitar',connHtml:'<li><b>Through an amp:</b> put your phone or laptop near the speaker.</li><li><b>Without an amp:</b> hold the mic close to the pickups.</li><li><b>Audio interface</b> (iRig, Focusrite…) is the most accurate. Choose it in Settings → Microphone.</li>',
+refTitle:'Reference tone (R)',ref:'Reference',start:'Start',stop:'Stop',tuningsTitle:'Tunings (T)',tunings:'Tunings',pickTitle:'Choose a tuning',searchPh:'Search: drop, C#, open…',newCustom:'＋ Create custom tuning',empty:'Nothing found. You can create your own tuning ↓',cAll:'All',cFav:'★ Favourites',cStd:'Standard',cDrop:'Drop',cOpen:'Open',c7:'7-string',cOther:'Other',cCustom:'Mine',edCustom:'Custom tuning',edEdit:'Edit tuning',namePh:'Name, e.g. “My song”',s6:'6 strings',s7:'7 strings',saveSel:'Save and select',deleteT:'Delete this tuning',edit:'Edit',fav:'Favourite',lower:'lower',higher:'higher',
+micT:'Microphone',micSub:'Built-in or audio interface',defaultDev:'Default',micN:'Microphone {n}',a4T:'A4 frequency',a4Sub:'Usually 440 Hz',less:'less',more:'more',tolT:'Precision',tolSub:'How close counts as “in tune”',tolStudio:'±2 ¢ — studio',tolPrecise:'±4 ¢ — precise',tolFast:'±7 ¢ — quick',sensT:'Sensitivity',sensSub:'Higher catches quiet sound, but also noise',vibT:'Vibration',vibSub:'Buzz when a string is in tune (Android)',wakeT:'Keep screen on',wakeSub:'While the mic is on',clickT:'“In tune” sound',clickSub:'Short click when a string is tuned',langT:'Language',langSub:'Interface language',
+listening:'Listening…',pluckAny:'pluck any open string',pluckN:'pluck string {n} ({note})',nowN:'Now string {n} → {note}',whenReady:'pluck it when ready',inTune:'String {n} is in tune',allDone:'all strings tuned 🎉',guidedNext:'keep it ringing — moving to the next one',canNext:'move on to the next string',tighten:'Tighten string {n}',loosen:'Loosen string {n}',soundsLow:'sounds too low',soundsHigh:'sounds too high',moreSemis:'{s} st to go · about {a}–{b} turn of the peg',bit:'a little, ⅛ turn or less',tiny:'just a touch on the peg',pressStart:'Press “Start”',idleSub:'and pluck an open string. Target: string {n} — {note}',toastTuned:'🤘 Guitar in tune: {t}',toastTuning:'Tuning: {t}',toastRef:'Reference: string {n} — {note}',saved:'Saved: {t}',deleted:'Tuning deleted',myTuning:'My tuning',errDenied:'The browser blocked the microphone. Click the lock or mic icon next to the address bar, allow access and try again.',errMic:'Could not start the microphone: ',errNoApi:'This browser does not allow microphone access. Open the page in Chrome, Edge or Safari.',allFourths:'All fourths',dStd:'regular tuning',dHalf:'half step down',dWhole:'whole step down',dDropD:'6th string a tone lower',dSlide:'slide, blues',dCeltic:'celtic, fingerstyle',dNash:'strings from a 12-string set',dMine:'my tuning'},
+
+fr:{title:'Stroy — accordeur de guitare',appName:'Stroy',appSub:'accordeur de guitare',settings:'Réglages',chooseTuning:'Choisir un accordage',close:'Fermer',low:'♭ trop bas',high:'trop haut ♯',cents:'c',hz:'Hz',target:'cible',history:'Historique',lgHigh:'trop haut',lgOk:'juste',lgLow:'trop bas',stringsTitle:'Cordes',nStrings:'{n} cordes',mAuto:'Auto',mGuided:'Dans l’ordre',mManual:'Une corde',resetMarks:'Réinitialiser',doneChip:'✓ fait',sameChip:'comme std',semi:'dt',stdShort:'std',fromStdNone:'C’est l’accordage standard — rien à changer, juste à ajuster.',fromStd:'Depuis le standard :',sShort:'{n}e',loosenBy:'baisser de {n} dt',tightenBy:'monter de {n} dt',
+howTitle:'Comment accorder',howHtml:'<li>L’étiquette colorée indique de combien bouger la corde par rapport au standard : <b style="color:var(--low)">−2</b> = baisser de 2 demi-tons, <b style="color:var(--high)">+1</b> = monter.</li><li>Grattez <b>une seule corde à vide</b> et laissez-la sonner. Étouffez les autres avec la paume.</li><li>Aiguille à <b style="color:var(--low)">gauche</b> : trop bas, tendez. À <b style="color:var(--high)">droite</b> : trop haut, détendez.</li><li>Un demi-ton correspond environ à ¼–½ tour de mécanique. C’est un ordre d’idée.</li><li>Montez vers la note <b>par en dessous</b> : si vous dépassez, redescendez un peu et remontez.</li><li>Le mode <b>« Dans l’ordre »</b> passe seul à la corde suivante.</li><li>Touches : <kbd>Espace</kbd> — micro, <kbd>1</kbd>–<kbd>7</kbd> — corde, <kbd>R</kbd> — référence, <kbd>T</kbd> — accordages.</li>',
+connTitle:'Brancher une guitare électrique',connHtml:'<li><b>Avec un ampli :</b> posez le téléphone ou l’ordinateur près du haut-parleur.</li><li><b>Sans ampli :</b> approchez le micro des micros de la guitare.</li><li><b>Interface audio</b> (iRig, Focusrite…) : le plus précis. Choisissez-la dans Réglages → Micro.</li>',
+refTitle:'Son de référence (R)',ref:'Référence',start:'Démarrer',stop:'Arrêter',tuningsTitle:'Accordages (T)',tunings:'Accordages',pickTitle:'Choisissez un accordage',searchPh:'Rechercher : drop, C#, open…',newCustom:'＋ Créer mon accordage',empty:'Rien trouvé. Vous pouvez créer votre accordage ↓',cAll:'Tous',cFav:'★ Favoris',cStd:'Standard',cDrop:'Drop',cOpen:'Ouverts',c7:'7 cordes',cOther:'Autres',cCustom:'Les miens',edCustom:'Mon accordage',edEdit:'Modifier l’accordage',namePh:'Nom, ex. « Ma chanson »',s6:'6 cordes',s7:'7 cordes',saveSel:'Enregistrer et choisir',deleteT:'Supprimer cet accordage',edit:'Modifier',fav:'Favori',lower:'plus bas',higher:'plus haut',
+micT:'Micro',micSub:'Intégré ou interface audio',defaultDev:'Par défaut',micN:'Micro {n}',a4T:'Fréquence du La4',a4Sub:'Généralement 440 Hz',less:'moins',more:'plus',tolT:'Précision',tolSub:'À partir de quand c’est « juste »',tolStudio:'±2 c — studio',tolPrecise:'±4 c — précis',tolFast:'±7 c — rapide',sensT:'Sensibilité',sensSub:'Plus haut : capte les sons faibles, mais aussi le bruit',vibT:'Vibration',vibSub:'Retour quand la corde est juste (Android)',wakeT:'Garder l’écran allumé',wakeSub:'Tant que le micro est actif',clickT:'Son « juste »',clickSub:'Petit clic quand la corde est accordée',langT:'Langue',langSub:'Langue de l’interface',
+listening:'J’écoute…',pluckAny:'grattez n’importe quelle corde à vide',pluckN:'grattez la corde {n} ({note})',nowN:'Maintenant corde {n} → {note}',whenReady:'grattez-la quand vous êtes prêt',inTune:'Corde {n} juste',allDone:'toutes les cordes sont accordées 🎉',guidedNext:'laissez sonner — on passe à la suivante',canNext:'passez à la corde suivante',tighten:'Tendez la corde {n}',loosen:'Détendez la corde {n}',soundsLow:'trop bas',soundsHigh:'trop haut',moreSemis:'encore {s} dt · environ {a}–{b} tour de mécanique',bit:'un peu, ⅛ de tour ou moins',tiny:'à peine, effleurez la mécanique',pressStart:'Appuyez sur « Démarrer »',idleSub:'et grattez une corde à vide. Cible : corde {n} — {note}',toastTuned:'🤘 Guitare accordée : {t}',toastTuning:'Accordage : {t}',toastRef:'Référence : corde {n} — {note}',saved:'Enregistré : {t}',deleted:'Accordage supprimé',myTuning:'Mon accordage',errDenied:'Le navigateur a bloqué le micro. Cliquez sur le cadenas ou l’icône micro près de la barre d’adresse, autorisez l’accès et réessayez.',errMic:'Impossible d’activer le micro : ',errNoApi:'Ce navigateur ne donne pas accès au micro. Ouvrez la page dans Chrome, Edge ou Safari.',allFourths:'Tout en quartes',dStd:'accordage habituel',dHalf:'un demi-ton plus bas',dWhole:'un ton plus bas',dDropD:'6e corde un ton plus bas',dSlide:'slide, blues',dCeltic:'celtique, fingerstyle',dNash:'cordes d’un jeu 12 cordes',dMine:'mon accordage'},
+
+de:{title:'Stroy — Gitarrenstimmgerät',appName:'Stroy',appSub:'Gitarrenstimmgerät',settings:'Einstellungen',chooseTuning:'Stimmung wählen',close:'Schließen',low:'♭ zu tief',high:'zu hoch ♯',cents:'ct',hz:'Hz',target:'Ziel',history:'Verlauf',lgHigh:'zu hoch',lgOk:'gestimmt',lgLow:'zu tief',stringsTitle:'Saiten',nStrings:'{n} Saiten',mAuto:'Auto',mGuided:'Der Reihe nach',mManual:'Eine Saite',resetMarks:'Markierungen zurücksetzen',doneChip:'✓ fertig',sameChip:'wie Standard',semi:'HT',stdShort:'Std.',fromStdNone:'Das ist die Standardstimmung — nichts ändern, nur nachstimmen.',fromStd:'Ab Standard:',sShort:'{n}.',loosenBy:'{n} HT tiefer',tightenBy:'{n} HT höher',
+howTitle:'So stimmst du',howHtml:'<li>Die farbige Marke zeigt, wie weit die Saite vom Standard abweicht: <b style="color:var(--low)">−2</b> = 2 Halbtöne tiefer, <b style="color:var(--high)">+1</b> = höher.</li><li>Schlage <b>eine leere</b> Saite an und lass sie klingen. Dämpfe die anderen mit dem Handballen.</li><li>Zeiger <b style="color:var(--low)">links</b>: zu tief, spannen. Zeiger <b style="color:var(--high)">rechts</b>: zu hoch, entspannen.</li><li>Ein Halbton entspricht meist etwa ¼–½ Umdrehung der Mechanik. Nur ein Richtwert.</li><li>Nähere dich dem Ton <b>von unten</b>: Wenn du zu hoch bist, etwas tiefer gehen und wieder hochstimmen.</li><li>Der Modus <b>„Der Reihe nach“</b> springt automatisch zur nächsten Saite.</li><li>Tasten: <kbd>Leertaste</kbd> — Mikro, <kbd>1</kbd>–<kbd>7</kbd> — Saite, <kbd>R</kbd> — Referenz, <kbd>T</kbd> — Stimmungen.</li>',
+connTitle:'E-Gitarre anschließen',connHtml:'<li><b>Über einen Verstärker:</b> Handy oder Laptop neben den Lautsprecher legen.</li><li><b>Ohne Verstärker:</b> das Mikrofon nah an die Tonabnehmer halten.</li><li><b>Audio-Interface</b> (iRig, Focusrite…) ist am genauesten. Unter Einstellungen → Mikrofon auswählen.</li>',
+refTitle:'Referenzton (R)',ref:'Referenz',start:'Starten',stop:'Stopp',tuningsTitle:'Stimmungen (T)',tunings:'Stimmungen',pickTitle:'Stimmung wählen',searchPh:'Suche: drop, C#, open…',newCustom:'＋ Eigene Stimmung erstellen',empty:'Nichts gefunden. Du kannst eine eigene Stimmung erstellen ↓',cAll:'Alle',cFav:'★ Favoriten',cStd:'Standard',cDrop:'Drop',cOpen:'Offen',c7:'7 Saiten',cOther:'Andere',cCustom:'Meine',edCustom:'Eigene Stimmung',edEdit:'Stimmung bearbeiten',namePh:'Name, z. B. „Mein Song“',s6:'6 Saiten',s7:'7 Saiten',saveSel:'Speichern und wählen',deleteT:'Diese Stimmung löschen',edit:'Bearbeiten',fav:'Favorit',lower:'tiefer',higher:'höher',
+micT:'Mikrofon',micSub:'Eingebaut oder Audio-Interface',defaultDev:'Standard',micN:'Mikrofon {n}',a4T:'Kammerton A4',a4Sub:'Meist 440 Hz',less:'weniger',more:'mehr',tolT:'Genauigkeit',tolSub:'Ab wann es als „gestimmt“ gilt',tolStudio:'±2 ct — Studio',tolPrecise:'±4 ct — genau',tolFast:'±7 ct — schnell',sensT:'Empfindlichkeit',sensSub:'Höher erfasst leise Töne, aber auch Rauschen',vibT:'Vibration',vibSub:'Feedback, wenn die Saite stimmt (Android)',wakeT:'Bildschirm anlassen',wakeSub:'Solange das Mikro läuft',clickT:'„Gestimmt“-Ton',clickSub:'Kurzer Klick, wenn die Saite stimmt',langT:'Sprache',langSub:'Sprache der Oberfläche',
+listening:'Höre zu…',pluckAny:'schlage eine beliebige leere Saite an',pluckN:'schlage Saite {n} an ({note})',nowN:'Jetzt Saite {n} → {note}',whenReady:'schlag sie an, wenn du bereit bist',inTune:'Saite {n} ist gestimmt',allDone:'alle Saiten gestimmt 🎉',guidedNext:'klingen lassen — gleich geht es weiter',canNext:'weiter zur nächsten Saite',tighten:'Saite {n} spannen',loosen:'Saite {n} entspannen',soundsLow:'klingt zu tief',soundsHigh:'klingt zu hoch',moreSemis:'noch {s} HT · etwa {a}–{b} Umdrehung',bit:'ein wenig, ⅛ Umdrehung oder weniger',tiny:'nur ganz leicht an der Mechanik',pressStart:'Drücke „Starten“',idleSub:'und schlage eine leere Saite an. Ziel: Saite {n} — {note}',toastTuned:'🤘 Gitarre gestimmt: {t}',toastTuning:'Stimmung: {t}',toastRef:'Referenz: Saite {n} — {note}',saved:'Gespeichert: {t}',deleted:'Stimmung gelöscht',myTuning:'Meine Stimmung',errDenied:'Der Browser hat das Mikrofon blockiert. Klicke auf das Schloss- oder Mikrofon-Symbol neben der Adressleiste, erlaube den Zugriff und versuche es erneut.',errMic:'Mikrofon konnte nicht gestartet werden: ',errNoApi:'Dieser Browser erlaubt keinen Mikrofonzugriff. Öffne die Seite in Chrome, Edge oder Safari.',allFourths:'Nur Quarten',dStd:'übliche Stimmung',dHalf:'Halbton tiefer',dWhole:'Ganzton tiefer',dDropD:'6. Saite einen Ton tiefer',dSlide:'Slide, Blues',dCeltic:'keltisch, Fingerstyle',dNash:'Saiten aus einem 12-Saiter-Satz',dMine:'meine Stimmung'},
+
+es:{title:'Stroy — afinador de guitarra',appName:'Stroy',appSub:'afinador de guitarra',settings:'Ajustes',chooseTuning:'Elegir afinación',close:'Cerrar',low:'♭ bajo',high:'alto ♯',cents:'c',hz:'Hz',target:'objetivo',history:'Historial',lgHigh:'alto',lgOk:'afinado',lgLow:'bajo',stringsTitle:'Cuerdas',nStrings:'{n} cuerdas',mAuto:'Auto',mGuided:'En orden',mManual:'Una cuerda',resetMarks:'Reiniciar marcas',doneChip:'✓ listo',sameChip:'como estándar',semi:'st',stdShort:'est.',fromStdNone:'Es la afinación estándar: no cambies nada, solo ajusta.',fromStd:'Desde la estándar:',sShort:'{n}.ª',loosenBy:'bajar {n} st',tightenBy:'subir {n} st',
+howTitle:'Cómo afinar',howHtml:'<li>La etiqueta de color indica cuánto mover la cuerda respecto a la estándar: <b style="color:var(--low)">−2</b> = bajar 2 semitonos, <b style="color:var(--high)">+1</b> = subir.</li><li>Toca <b>una sola cuerda al aire</b> y déjala sonar. Apaga las demás con la palma.</li><li>Aguja a la <b style="color:var(--low)">izquierda</b>: suena bajo, tensa. A la <b style="color:var(--high)">derecha</b>: suena alto, afloja.</li><li>Un semitono suele ser ¼–½ vuelta de clavija. Es solo una referencia.</li><li>Llega a la nota <b>desde abajo</b>: si te pasas, baja un poco y vuelve a subir.</li><li>El modo <b>«En orden»</b> pasa solo a la siguiente cuerda.</li><li>Teclas: <kbd>Espacio</kbd> — micrófono, <kbd>1</kbd>–<kbd>7</kbd> — cuerda, <kbd>R</kbd> — referencia, <kbd>T</kbd> — afinaciones.</li>',
+connTitle:'Conectar una guitarra eléctrica',connHtml:'<li><b>Con amplificador:</b> deja el móvil o portátil cerca del altavoz.</li><li><b>Sin amplificador:</b> acerca el micrófono a las pastillas.</li><li><b>Interfaz de audio</b> (iRig, Focusrite…): lo más preciso. Elígela en Ajustes → Micrófono.</li>',
+refTitle:'Tono de referencia (R)',ref:'Referencia',start:'Empezar',stop:'Parar',tuningsTitle:'Afinaciones (T)',tunings:'Afinaciones',pickTitle:'Elige una afinación',searchPh:'Buscar: drop, C#, open…',newCustom:'＋ Crear mi afinación',empty:'No se encontró nada. Puedes crear tu afinación ↓',cAll:'Todas',cFav:'★ Favoritas',cStd:'Estándar',cDrop:'Drop',cOpen:'Abiertas',c7:'7 cuerdas',cOther:'Otras',cCustom:'Mías',edCustom:'Mi afinación',edEdit:'Editar afinación',namePh:'Nombre, p. ej. «Mi canción»',s6:'6 cuerdas',s7:'7 cuerdas',saveSel:'Guardar y elegir',deleteT:'Eliminar esta afinación',edit:'Editar',fav:'Favorita',lower:'más bajo',higher:'más alto',
+micT:'Micrófono',micSub:'Integrado o interfaz de audio',defaultDev:'Predeterminado',micN:'Micrófono {n}',a4T:'Frecuencia del La4',a4Sub:'Normalmente 440 Hz',less:'menos',more:'más',tolT:'Precisión',tolSub:'Cuándo se considera «afinado»',tolStudio:'±2 c — estudio',tolPrecise:'±4 c — preciso',tolFast:'±7 c — rápido',sensT:'Sensibilidad',sensSub:'Más alta capta sonidos suaves, pero también ruido',vibT:'Vibración',vibSub:'Aviso cuando la cuerda está afinada (Android)',wakeT:'Mantener pantalla encendida',wakeSub:'Mientras el micrófono está activo',clickT:'Sonido «afinado»',clickSub:'Clic corto cuando la cuerda está afinada',langT:'Idioma',langSub:'Idioma de la interfaz',
+listening:'Escuchando…',pluckAny:'toca cualquier cuerda al aire',pluckN:'toca la cuerda {n} ({note})',nowN:'Ahora cuerda {n} → {note}',whenReady:'tócala cuando estés listo',inTune:'Cuerda {n} afinada',allDone:'todas las cuerdas afinadas 🎉',guidedNext:'déjala sonar — pasamos a la siguiente',canNext:'pasa a la siguiente cuerda',tighten:'Tensa la cuerda {n}',loosen:'Afloja la cuerda {n}',soundsLow:'suena más bajo',soundsHigh:'suena más alto',moreSemis:'faltan {s} st · unos {a}–{b} de vuelta de clavija',bit:'un poco, ⅛ de vuelta o menos',tiny:'apenas, roza la clavija',pressStart:'Pulsa «Empezar»',idleSub:'y toca una cuerda al aire. Objetivo: cuerda {n} — {note}',toastTuned:'🤘 Guitarra afinada: {t}',toastTuning:'Afinación: {t}',toastRef:'Referencia: cuerda {n} — {note}',saved:'Guardado: {t}',deleted:'Afinación eliminada',myTuning:'Mi afinación',errDenied:'El navegador bloqueó el micrófono. Pulsa el candado o el icono del micrófono junto a la barra de direcciones, permite el acceso y vuelve a intentarlo.',errMic:'No se pudo activar el micrófono: ',errNoApi:'Este navegador no permite usar el micrófono. Abre la página en Chrome, Edge o Safari.',allFourths:'Todo en cuartas',dStd:'afinación normal',dHalf:'medio tono abajo',dWhole:'un tono abajo',dDropD:'6.ª cuerda un tono abajo',dSlide:'slide, blues',dCeltic:'celta, fingerstyle',dNash:'cuerdas de un juego de 12',dMine:'mi afinación'},
+
+pt:{title:'Stroy — afinador de guitarra',appName:'Stroy',appSub:'afinador de guitarra',settings:'Configurações',chooseTuning:'Escolher afinação',close:'Fechar',low:'♭ baixo',high:'alto ♯',cents:'c',hz:'Hz',target:'alvo',history:'Histórico',lgHigh:'alto',lgOk:'afinado',lgLow:'baixo',stringsTitle:'Cordas',nStrings:'{n} cordas',mAuto:'Auto',mGuided:'Em ordem',mManual:'Uma corda',resetMarks:'Limpar marcas',doneChip:'✓ ok',sameChip:'como padrão',semi:'st',stdShort:'padr.',fromStdNone:'Esta é a afinação padrão — não mude nada, só ajuste.',fromStd:'A partir do padrão:',sShort:'{n}ª',loosenBy:'baixar {n} st',tightenBy:'subir {n} st',
+howTitle:'Como afinar',howHtml:'<li>A etiqueta colorida mostra quanto mudar a corda em relação ao padrão: <b style="color:var(--low)">−2</b> = baixar 2 semitons, <b style="color:var(--high)">+1</b> = subir.</li><li>Toque <b>uma corda solta</b> e deixe soar. Abafe as outras com a palma.</li><li>Ponteiro à <b style="color:var(--low)">esquerda</b>: está baixo, aperte. À <b style="color:var(--high)">direita</b>: alto, afrouxe.</li><li>Um semitom costuma ser ¼–½ volta da tarraxa. É só uma referência.</li><li>Chegue à nota <b>por baixo</b>: se passar, desça um pouco e suba de novo.</li><li>O modo <b>«Em ordem»</b> passa sozinho para a próxima corda.</li><li>Teclas: <kbd>Espaço</kbd> — microfone, <kbd>1</kbd>–<kbd>7</kbd> — corda, <kbd>R</kbd> — referência, <kbd>T</kbd> — afinações.</li>',
+connTitle:'Ligar uma guitarra elétrica',connHtml:'<li><b>Com amplificador:</b> coloque o telemóvel ou portátil perto do altifalante.</li><li><b>Sem amplificador:</b> aproxime o microfone dos captadores.</li><li><b>Interface de áudio</b> (iRig, Focusrite…): o mais preciso. Escolha em Configurações → Microfone.</li>',
+refTitle:'Som de referência (R)',ref:'Referência',start:'Começar',stop:'Parar',tuningsTitle:'Afinações (T)',tunings:'Afinações',pickTitle:'Escolha uma afinação',searchPh:'Pesquisar: drop, C#, open…',newCustom:'＋ Criar minha afinação',empty:'Nada encontrado. Pode criar a sua afinação ↓',cAll:'Todas',cFav:'★ Favoritas',cStd:'Padrão',cDrop:'Drop',cOpen:'Abertas',c7:'7 cordas',cOther:'Outras',cCustom:'Minhas',edCustom:'Minha afinação',edEdit:'Editar afinação',namePh:'Nome, ex. «Minha música»',s6:'6 cordas',s7:'7 cordas',saveSel:'Guardar e escolher',deleteT:'Apagar esta afinação',edit:'Editar',fav:'Favorita',lower:'mais baixo',higher:'mais alto',
+micT:'Microfone',micSub:'Integrado ou interface de áudio',defaultDev:'Padrão',micN:'Microfone {n}',a4T:'Frequência do Lá4',a4Sub:'Normalmente 440 Hz',less:'menos',more:'mais',tolT:'Precisão',tolSub:'Quando conta como «afinado»',tolStudio:'±2 c — estúdio',tolPrecise:'±4 c — preciso',tolFast:'±7 c — rápido',sensT:'Sensibilidade',sensSub:'Mais alta capta sons fracos, mas também ruído',vibT:'Vibração',vibSub:'Aviso quando a corda está afinada (Android)',wakeT:'Manter ecrã ligado',wakeSub:'Enquanto o microfone está ativo',clickT:'Som «afinado»',clickSub:'Clique curto quando a corda está afinada',langT:'Idioma',langSub:'Idioma da interface',
+listening:'A ouvir…',pluckAny:'toque qualquer corda solta',pluckN:'toque a corda {n} ({note})',nowN:'Agora corda {n} → {note}',whenReady:'toque-a quando estiver pronto',inTune:'Corda {n} afinada',allDone:'todas as cordas afinadas 🎉',guidedNext:'deixe soar — vamos para a próxima',canNext:'passe para a próxima corda',tighten:'Aperte a corda {n}',loosen:'Afrouxe a corda {n}',soundsLow:'soa mais baixo',soundsHigh:'soa mais alto',moreSemis:'faltam {s} st · cerca de {a}–{b} volta da tarraxa',bit:'um pouco, ⅛ de volta ou menos',tiny:'só um toque na tarraxa',pressStart:'Carregue em «Começar»',idleSub:'e toque uma corda solta. Alvo: corda {n} — {note}',toastTuned:'🤘 Guitarra afinada: {t}',toastTuning:'Afinação: {t}',toastRef:'Referência: corda {n} — {note}',saved:'Guardado: {t}',deleted:'Afinação apagada',myTuning:'Minha afinação',errDenied:'O navegador bloqueou o microfone. Clique no cadeado ou no ícone do microfone junto à barra de endereço, permita o acesso e tente novamente.',errMic:'Não foi possível ligar o microfone: ',errNoApi:'Este navegador não permite o microfone. Abra a página no Chrome, Edge ou Safari.',allFourths:'Tudo em quartas',dStd:'afinação normal',dHalf:'meio tom abaixo',dWhole:'um tom abaixo',dDropD:'6ª corda um tom abaixo',dSlide:'slide, blues',dCeltic:'celta, fingerstyle',dNash:'cordas de um jogo de 12',dMine:'minha afinação'},
+
+it:{title:'Stroy — accordatore per chitarra',appName:'Stroy',appSub:'accordatore per chitarra',settings:'Impostazioni',chooseTuning:'Scegli accordatura',close:'Chiudi',low:'♭ calante',high:'crescente ♯',cents:'c',hz:'Hz',target:'obiettivo',history:'Cronologia',lgHigh:'crescente',lgOk:'intonata',lgLow:'calante',stringsTitle:'Corde',nStrings:'{n} corde',mAuto:'Auto',mGuided:'In ordine',mManual:'Una corda',resetMarks:'Azzera segni',doneChip:'✓ fatto',sameChip:'come std',semi:'st',stdShort:'std',fromStdNone:'È l’accordatura standard: non cambiare nulla, solo rifinisci.',fromStd:'Dallo standard:',sShort:'{n}ª',loosenBy:'abbassa di {n} st',tightenBy:'alza di {n} st',
+howTitle:'Come accordare',howHtml:'<li>L’etichetta colorata indica di quanto spostare la corda rispetto allo standard: <b style="color:var(--low)">−2</b> = abbassa di 2 semitoni, <b style="color:var(--high)">+1</b> = alza.</li><li>Pizzica <b>una sola corda a vuoto</b> e lasciala suonare. Smorza le altre con il palmo.</li><li>Ago a <b style="color:var(--low)">sinistra</b>: calante, tendi. A <b style="color:var(--high)">destra</b>: crescente, allenta.</li><li>Un semitono è di solito ¼–½ giro di meccanica. È solo un riferimento.</li><li>Arriva alla nota <b>dal basso</b>: se superi, scendi un po’ e risali.</li><li>La modalità <b>«In ordine»</b> passa da sola alla corda successiva.</li><li>Tasti: <kbd>Spazio</kbd> — microfono, <kbd>1</kbd>–<kbd>7</kbd> — corda, <kbd>R</kbd> — riferimento, <kbd>T</kbd> — accordature.</li>',
+connTitle:'Collegare una chitarra elettrica',connHtml:'<li><b>Con l’amplificatore:</b> metti telefono o portatile vicino al cono.</li><li><b>Senza amplificatore:</b> avvicina il microfono ai pickup.</li><li><b>Interfaccia audio</b> (iRig, Focusrite…): la più precisa. Sceglila in Impostazioni → Microfono.</li>',
+refTitle:'Suono di riferimento (R)',ref:'Riferimento',start:'Avvia',stop:'Stop',tuningsTitle:'Accordature (T)',tunings:'Accordature',pickTitle:'Scegli un’accordatura',searchPh:'Cerca: drop, C#, open…',newCustom:'＋ Crea la tua accordatura',empty:'Nessun risultato. Puoi creare la tua accordatura ↓',cAll:'Tutte',cFav:'★ Preferite',cStd:'Standard',cDrop:'Drop',cOpen:'Aperte',c7:'7 corde',cOther:'Altre',cCustom:'Mie',edCustom:'La mia accordatura',edEdit:'Modifica accordatura',namePh:'Nome, es. «La mia canzone»',s6:'6 corde',s7:'7 corde',saveSel:'Salva e scegli',deleteT:'Elimina questa accordatura',edit:'Modifica',fav:'Preferita',lower:'più basso',higher:'più alto',
+micT:'Microfono',micSub:'Integrato o interfaccia audio',defaultDev:'Predefinito',micN:'Microfono {n}',a4T:'Frequenza del La4',a4Sub:'Di solito 440 Hz',less:'meno',more:'più',tolT:'Precisione',tolSub:'Quando considerarla «intonata»',tolStudio:'±2 c — studio',tolPrecise:'±4 c — preciso',tolFast:'±7 c — veloce',sensT:'Sensibilità',sensSub:'Più alta capta suoni deboli, ma anche rumore',vibT:'Vibrazione',vibSub:'Segnale quando la corda è intonata (Android)',wakeT:'Schermo sempre acceso',wakeSub:'Finché il microfono è attivo',clickT:'Suono «intonata»',clickSub:'Breve clic quando la corda è accordata',langT:'Lingua',langSub:'Lingua dell’interfaccia',
+listening:'In ascolto…',pluckAny:'pizzica una corda a vuoto qualsiasi',pluckN:'pizzica la corda {n} ({note})',nowN:'Ora corda {n} → {note}',whenReady:'pizzicala quando sei pronto',inTune:'Corda {n} intonata',allDone:'tutte le corde accordate 🎉',guidedNext:'lasciala suonare — passiamo alla prossima',canNext:'passa alla corda successiva',tighten:'Tendi la corda {n}',loosen:'Allenta la corda {n}',soundsLow:'suona troppo basso',soundsHigh:'suona troppo alto',moreSemis:'ancora {s} st · circa {a}–{b} giro di meccanica',bit:'poco, ⅛ di giro o meno',tiny:'appena, sfiora la meccanica',pressStart:'Premi «Avvia»',idleSub:'e pizzica una corda a vuoto. Obiettivo: corda {n} — {note}',toastTuned:'🤘 Chitarra accordata: {t}',toastTuning:'Accordatura: {t}',toastRef:'Riferimento: corda {n} — {note}',saved:'Salvato: {t}',deleted:'Accordatura eliminata',myTuning:'La mia accordatura',errDenied:'Il browser ha bloccato il microfono. Clicca sul lucchetto o sull’icona del microfono accanto alla barra degli indirizzi, consenti l’accesso e riprova.',errMic:'Impossibile avviare il microfono: ',errNoApi:'Questo browser non consente il microfono. Apri la pagina in Chrome, Edge o Safari.',allFourths:'Tutte quarte',dStd:'accordatura normale',dHalf:'mezzo tono sotto',dWhole:'un tono sotto',dDropD:'6ª corda un tono sotto',dSlide:'slide, blues',dCeltic:'celtica, fingerstyle',dNash:'corde da una muta a 12',dMine:'la mia accordatura'},
+
+pl:{title:'Stroy — stroik gitarowy',appName:'Stroy',appSub:'stroik gitarowy',settings:'Ustawienia',chooseTuning:'Wybierz strój',close:'Zamknij',low:'♭ za nisko',high:'za wysoko ♯',cents:'c',hz:'Hz',target:'cel',history:'Historia',lgHigh:'za wysoko',lgOk:'nastrojona',lgLow:'za nisko',stringsTitle:'Struny',nStrings:'{n} strun',mAuto:'Auto',mGuided:'Po kolei',mManual:'Jedna struna',resetMarks:'Wyczyść znaczniki',doneChip:'✓ gotowe',sameChip:'jak w std.',semi:'pt',stdShort:'std.',fromStdNone:'To strój standardowy — nic nie zmieniaj, tylko dostrój.',fromStd:'Względem standardu:',sShort:'{n}.',loosenBy:'obniż o {n} pt',tightenBy:'podnieś o {n} pt',
+howTitle:'Jak stroić',howHtml:'<li>Kolorowa etykieta pokazuje, o ile zmienić strunę względem standardu: <b style="color:var(--low)">−2</b> = obniż o 2 półtony, <b style="color:var(--high)">+1</b> = podnieś.</li><li>Szarpnij <b>jedną pustą</b> strunę i pozwól jej brzmieć. Pozostałe wycisz dłonią.</li><li>Wskazówka w <b style="color:var(--low)">lewo</b>: za nisko, napinaj. W <b style="color:var(--high)">prawo</b>: za wysoko, luzuj.</li><li>Półton to zwykle ¼–½ obrotu klucza. To tylko orientacja.</li><li>Dochodź do dźwięku <b>od dołu</b>: jeśli przesadzisz, zejdź trochę niżej i podciągnij.</li><li>Tryb <b>„Po kolei”</b> sam przechodzi do następnej struny.</li><li>Klawisze: <kbd>Spacja</kbd> — mikrofon, <kbd>1</kbd>–<kbd>7</kbd> — struna, <kbd>R</kbd> — wzorzec, <kbd>T</kbd> — stroje.</li>',
+connTitle:'Jak podłączyć gitarę elektryczną',connHtml:'<li><b>Przez wzmacniacz:</b> połóż telefon lub laptop obok głośnika.</li><li><b>Bez wzmacniacza:</b> zbliż mikrofon do przetworników.</li><li><b>Interfejs audio</b> (iRig, Focusrite…) — najdokładniej. Wybierz go w Ustawienia → Mikrofon.</li>',
+refTitle:'Dźwięk wzorcowy (R)',ref:'Wzorzec',start:'Start',stop:'Stop',tuningsTitle:'Stroje (T)',tunings:'Stroje',pickTitle:'Wybierz strój',searchPh:'Szukaj: drop, C#, open…',newCustom:'＋ Utwórz własny strój',empty:'Nic nie znaleziono. Możesz utworzyć własny strój ↓',cAll:'Wszystkie',cFav:'★ Ulubione',cStd:'Standardowe',cDrop:'Drop',cOpen:'Otwarte',c7:'7 strun',cOther:'Inne',cCustom:'Moje',edCustom:'Własny strój',edEdit:'Edytuj strój',namePh:'Nazwa, np. „Moja piosenka”',s6:'6 strun',s7:'7 strun',saveSel:'Zapisz i wybierz',deleteT:'Usuń ten strój',edit:'Edytuj',fav:'Ulubione',lower:'niżej',higher:'wyżej',
+micT:'Mikrofon',micSub:'Wbudowany lub interfejs audio',defaultDev:'Domyślny',micN:'Mikrofon {n}',a4T:'Częstotliwość A4',a4Sub:'Zwykle 440 Hz',less:'mniej',more:'więcej',tolT:'Dokładność',tolSub:'Kiedy uznać za „nastrojoną”',tolStudio:'±2 c — studio',tolPrecise:'±4 c — dokładnie',tolFast:'±7 c — szybko',sensT:'Czułość',sensSub:'Wyższa łapie ciche dźwięki, ale też szum',vibT:'Wibracja',vibSub:'Sygnał, gdy struna jest nastrojona (Android)',wakeT:'Nie wygaszaj ekranu',wakeSub:'Gdy mikrofon działa',clickT:'Dźwięk „nastrojona”',clickSub:'Krótkie kliknięcie po nastrojeniu struny',langT:'Język',langSub:'Język interfejsu',
+listening:'Słucham…',pluckAny:'szarpnij dowolną pustą strunę',pluckN:'szarpnij strunę {n} ({note})',nowN:'Teraz struna {n} → {note}',whenReady:'szarpnij ją, gdy będziesz gotów',inTune:'Struna {n} nastrojona',allDone:'wszystkie struny nastrojone 🎉',guidedNext:'trzymaj dźwięk — zaraz następna',canNext:'przejdź do następnej struny',tighten:'Napnij strunę {n}',loosen:'Poluzuj strunę {n}',soundsLow:'brzmi za nisko',soundsHigh:'brzmi za wysoko',moreSemis:'jeszcze {s} pt · około {a}–{b} obrotu klucza',bit:'trochę, ⅛ obrotu lub mniej',tiny:'odrobinę, ledwo dotykając klucza',pressStart:'Naciśnij „Start”',idleSub:'i szarpnij pustą strunę. Cel: struna {n} — {note}',toastTuned:'🤘 Gitara nastrojona: {t}',toastTuning:'Strój: {t}',toastRef:'Wzorzec: struna {n} — {note}',saved:'Zapisano: {t}',deleted:'Strój usunięty',myTuning:'Mój strój',errDenied:'Przeglądarka zablokowała mikrofon. Kliknij kłódkę lub ikonę mikrofonu przy pasku adresu, zezwól na dostęp i spróbuj ponownie.',errMic:'Nie udało się włączyć mikrofonu: ',errNoApi:'Ta przeglądarka nie daje dostępu do mikrofonu. Otwórz stronę w Chrome, Edge lub Safari.',allFourths:'Same kwarty',dStd:'zwykły strój',dHalf:'pół tonu niżej',dWhole:'cały ton niżej',dDropD:'6. struna o ton niżej',dSlide:'slide, blues',dCeltic:'celtycki, fingerstyle',dNash:'struny z kompletu 12-strunowego',dMine:'mój strój'},
+
+tr:{title:'Stroy — gitar akort aleti',appName:'Stroy',appSub:'gitar akort aleti',settings:'Ayarlar',chooseTuning:'Akort seç',close:'Kapat',low:'♭ pes',high:'tiz ♯',cents:'s',hz:'Hz',target:'hedef',history:'Geçmiş',lgHigh:'tiz',lgOk:'akortlu',lgLow:'pes',stringsTitle:'Teller',nStrings:'{n} tel',mAuto:'Otomatik',mGuided:'Sırayla',mManual:'Tek tel',resetMarks:'İşaretleri sıfırla',doneChip:'✓ tamam',sameChip:'standart gibi',semi:'yt',stdShort:'std.',fromStdNone:'Bu standart akort — hiçbir şeyi değiştirme, sadece ince ayar yap.',fromStd:'Standarda göre:',sShort:'{n}.',loosenBy:'{n} yt düşür',tightenBy:'{n} yt yükselt',
+howTitle:'Nasıl akort edilir',howHtml:'<li>Renkli etiket teli standarda göre ne kadar değiştireceğini gösterir: <b style="color:var(--low)">−2</b> = 2 yarım ton düşür, <b style="color:var(--high)">+1</b> = yükselt.</li><li><b>Tek bir boş</b> teli çal ve tınlamasına izin ver. Diğerlerini avucunla sustur.</li><li>İbre <b style="color:var(--low)">solda</b>: pes, gerdir. <b style="color:var(--high)">Sağda</b>: tiz, gevşet.</li><li>Bir yarım ton genelde burgunun ¼–½ turudur. Sadece yaklaşık bir değer.</li><li>Notaya <b>aşağıdan</b> yaklaş: geçersen biraz düşür ve tekrar yükselt.</li><li><b>«Sırayla»</b> modu bir sonraki tele kendisi geçer.</li><li>Tuşlar: <kbd>Boşluk</kbd> — mikrofon, <kbd>1</kbd>–<kbd>7</kbd> — tel, <kbd>R</kbd> — referans, <kbd>T</kbd> — akortlar.</li>',
+connTitle:'Elektro gitar nasıl bağlanır',connHtml:'<li><b>Amfiyle:</b> telefonu veya dizüstünü hoparlörün yanına koy.</li><li><b>Amfisiz:</b> mikrofonu manyetiklere yaklaştır.</li><li><b>Ses kartı</b> (iRig, Focusrite…) en hassas yöntemdir. Ayarlar → Mikrofon’dan seç.</li>',
+refTitle:'Referans ses (R)',ref:'Referans',start:'Başla',stop:'Durdur',tuningsTitle:'Akortlar (T)',tunings:'Akortlar',pickTitle:'Bir akort seç',searchPh:'Ara: drop, C#, open…',newCustom:'＋ Kendi akordunu oluştur',empty:'Bir şey bulunamadı. Kendi akordunu oluşturabilirsin ↓',cAll:'Tümü',cFav:'★ Favoriler',cStd:'Standart',cDrop:'Drop',cOpen:'Açık',c7:'7 telli',cOther:'Diğer',cCustom:'Benimkiler',edCustom:'Kendi akordum',edEdit:'Akordu düzenle',namePh:'Ad, ör. «Şarkım»',s6:'6 tel',s7:'7 tel',saveSel:'Kaydet ve seç',deleteT:'Bu akordu sil',edit:'Düzenle',fav:'Favori',lower:'daha pes',higher:'daha tiz',
+micT:'Mikrofon',micSub:'Dahili veya ses kartı',defaultDev:'Varsayılan',micN:'Mikrofon {n}',a4T:'A4 frekansı',a4Sub:'Genelde 440 Hz',less:'az',more:'çok',tolT:'Hassasiyet',tolSub:'Ne kadar yakın «akortlu» sayılır',tolStudio:'±2 s — stüdyo',tolPrecise:'±4 s — hassas',tolFast:'±7 s — hızlı',sensT:'Duyarlılık',sensSub:'Yüksek: kısık sesleri yakalar ama gürültüyü de',vibT:'Titreşim',vibSub:'Tel akortlu olunca bildirim (Android)',wakeT:'Ekranı açık tut',wakeSub:'Mikrofon açıkken',clickT:'«Akortlu» sesi',clickSub:'Tel akortlanınca kısa tık',langT:'Dil',langSub:'Arayüz dili',
+listening:'Dinliyorum…',pluckAny:'herhangi bir boş teli çal',pluckN:'{n}. teli çal ({note})',nowN:'Şimdi {n}. tel → {note}',whenReady:'hazır olunca çal',inTune:'{n}. tel akortlu',allDone:'tüm teller akortlu 🎉',guidedNext:'sesi tut — sıradakine geçiyoruz',canNext:'sonraki tele geçebilirsin',tighten:'{n}. teli ger',loosen:'{n}. teli gevşet',soundsLow:'olması gerekenden pes',soundsHigh:'olması gerekenden tiz',moreSemis:'{s} yt kaldı · yaklaşık {a}–{b} tur burgu',bit:'biraz, ⅛ tur veya daha az',tiny:'çok az, burguya hafifçe dokun',pressStart:'«Başla»ya bas',idleSub:'ve boş bir tel çal. Hedef: {n}. tel — {note}',toastTuned:'🤘 Gitar akortlu: {t}',toastTuning:'Akort: {t}',toastRef:'Referans: {n}. tel — {note}',saved:'Kaydedildi: {t}',deleted:'Akort silindi',myTuning:'Akordum',errDenied:'Tarayıcı mikrofonu engelledi. Adres çubuğunun yanındaki kilit veya mikrofon simgesine tıkla, izin ver ve tekrar dene.',errMic:'Mikrofon açılamadı: ',errNoApi:'Bu tarayıcı mikrofona izin vermiyor. Sayfayı Chrome, Edge veya Safari’de aç.',allFourths:'Tamamen dörtlü',dStd:'normal akort',dHalf:'yarım ton aşağı',dWhole:'bir ton aşağı',dDropD:'6. tel bir ton aşağı',dSlide:'slide, blues',dCeltic:'kelt, fingerstyle',dNash:'12 telli setin telleri',dMine:'akordum'},
+
+zh:{title:'Stroy — 吉他调音器',appName:'Stroy',appSub:'吉他调音器',settings:'设置',chooseTuning:'选择调弦',close:'关闭',low:'♭ 偏低',high:'偏高 ♯',cents:'音分',hz:'Hz',target:'目标',history:'历史',lgHigh:'偏高',lgOk:'已调准',lgLow:'偏低',stringsTitle:'琴弦',nStrings:'{n} 弦',mAuto:'自动',mGuided:'按顺序',mManual:'单根弦',resetMarks:'清除标记',doneChip:'✓ 完成',sameChip:'同标准',semi:'半音',stdShort:'标准',fromStdNone:'这是标准调弦——无需改动，只需微调。',fromStd:'相对标准：',sShort:'{n} 弦',loosenBy:'降低 {n} 个半音',tightenBy:'升高 {n} 个半音',
+howTitle:'如何调音',howHtml:'<li>琴弦旁的彩色标签表示相对标准调弦需要改变多少：<b style="color:var(--low)">−2</b> = 降低 2 个半音，<b style="color:var(--high)">+1</b> = 升高。</li><li>只拨<b>一根空弦</b>，让它持续发声。用手掌止住其他弦。</li><li>指针在<b style="color:var(--low)">左边</b>：偏低，拧紧。在<b style="color:var(--high)">右边</b>：偏高，放松。</li><li>一个半音通常约为弦钮转 ¼–½ 圈，仅供参考。</li><li>最好<b>从低往高</b>调：调过头就先放低一点再往上调。</li><li><b>“按顺序”</b>模式会自动切换到下一根弦。</li><li>快捷键：<kbd>空格</kbd> — 麦克风，<kbd>1</kbd>–<kbd>7</kbd> — 琴弦，<kbd>R</kbd> — 参考音，<kbd>T</kbd> — 调弦。</li>',
+connTitle:'如何连接电吉他',connHtml:'<li><b>通过音箱：</b>把手机或电脑放在扬声器旁边。</li><li><b>不用音箱：</b>把麦克风靠近拾音器。</li><li><b>声卡</b>（iRig、Focusrite 等）最准确。在 设置 → 麦克风 中选择它。</li>',
+refTitle:'参考音 (R)',ref:'参考音',start:'开始',stop:'停止',tuningsTitle:'调弦 (T)',tunings:'调弦',pickTitle:'选择调弦',searchPh:'搜索：drop、C#、open…',newCustom:'＋ 创建自定义调弦',empty:'未找到。你可以创建自己的调弦 ↓',cAll:'全部',cFav:'★ 收藏',cStd:'标准',cDrop:'Drop',cOpen:'开放',c7:'七弦',cOther:'其他',cCustom:'我的',edCustom:'自定义调弦',edEdit:'编辑调弦',namePh:'名称，例如“我的歌”',s6:'6 弦',s7:'7 弦',saveSel:'保存并选择',deleteT:'删除此调弦',edit:'编辑',fav:'收藏',lower:'降低',higher:'升高',
+micT:'麦克风',micSub:'内置麦克风或声卡',defaultDev:'默认',micN:'麦克风 {n}',a4T:'A4 频率',a4Sub:'通常为 440 Hz',less:'减少',more:'增加',tolT:'精度',tolSub:'多接近才算“已调准”',tolStudio:'±2 音分 — 录音室',tolPrecise:'±4 音分 — 精确',tolFast:'±7 音分 — 快速',sensT:'灵敏度',sensSub:'越高越能捕捉小声，但也会收到噪音',vibT:'振动',vibSub:'调准时振动提示（Android）',wakeT:'保持屏幕常亮',wakeSub:'麦克风开启期间',clickT:'调准提示音',clickSub:'琴弦调准时短促的咔嗒声',langT:'语言',langSub:'界面语言',
+listening:'正在聆听…',pluckAny:'拨任意一根空弦',pluckN:'拨第 {n} 弦（{note}）',nowN:'现在第 {n} 弦 → {note}',whenReady:'准备好后拨弦',inTune:'第 {n} 弦已调准',allDone:'所有琴弦已调准 🎉',guidedNext:'保持发声——马上切换到下一根',canNext:'可以调下一根弦了',tighten:'拧紧第 {n} 弦',loosen:'放松第 {n} 弦',soundsLow:'音偏低',soundsHigh:'音偏高',moreSemis:'还差 {s} 个半音 · 约转 {a}–{b} 圈',bit:'一点点，⅛ 圈或更少',tiny:'非常轻微地转动弦钮',pressStart:'点击“开始”',idleSub:'然后拨一根空弦。目标：第 {n} 弦 — {note}',toastTuned:'🤘 吉他已调准：{t}',toastTuning:'调弦：{t}',toastRef:'参考音：第 {n} 弦 — {note}',saved:'已保存：{t}',deleted:'调弦已删除',myTuning:'我的调弦',errDenied:'浏览器阻止了麦克风。点击地址栏旁的锁或麦克风图标，允许访问后重试。',errMic:'无法开启麦克风：',errNoApi:'此浏览器不支持麦克风。请在 Chrome、Edge 或 Safari 中打开。',allFourths:'全四度',dStd:'常规调弦',dHalf:'降半音',dWhole:'降全音',dDropD:'第 6 弦降一个全音',dSlide:'滑棒、布鲁斯',dCeltic:'凯尔特、指弹',dNash:'使用十二弦套装中的弦',dMine:'我的调弦'},
+
+ja:{title:'Stroy — ギターチューナー',appName:'Stroy',appSub:'ギターチューナー',settings:'設定',chooseTuning:'チューニングを選ぶ',close:'閉じる',low:'♭ 低い',high:'高い ♯',cents:'セント',hz:'Hz',target:'目標',history:'履歴',lgHigh:'高い',lgOk:'合っている',lgLow:'低い',stringsTitle:'弦',nStrings:'{n} 弦',mAuto:'自動',mGuided:'順番に',mManual:'1本だけ',resetMarks:'マークをリセット',doneChip:'✓ 完了',sameChip:'標準と同じ',semi:'半音',stdShort:'標準',fromStdNone:'標準チューニングです。変更不要、微調整だけでOK。',fromStd:'標準からの変更：',sShort:'{n}弦',loosenBy:'{n} 半音下げる',tightenBy:'{n} 半音上げる',
+howTitle:'チューニングのしかた',howHtml:'<li>弦の横の色付きラベルは標準からどれだけ変えるかを示します：<b style="color:var(--low)">−2</b> = 半音2つ下げる、<b style="color:var(--high)">+1</b> = 上げる。</li><li><b>開放弦を1本だけ</b>弾いて鳴らし続けます。他の弦は手のひらでミュート。</li><li>針が<b style="color:var(--low)">左</b>なら低いので締める。<b style="color:var(--high)">右</b>なら高いので緩める。</li><li>半音1つはペグを約¼〜½回転が目安です。</li><li>音には<b>下から</b>合わせましょう。行き過ぎたら少し下げて上げ直します。</li><li><b>「順番に」</b>モードは次の弦へ自動で進みます。</li><li>キー：<kbd>Space</kbd> — マイク、<kbd>1</kbd>–<kbd>7</kbd> — 弦、<kbd>R</kbd> — 基準音、<kbd>T</kbd> — チューニング。</li>',
+connTitle:'エレキギターのつなぎ方',connHtml:'<li><b>アンプ経由：</b>スマホやPCをスピーカーの近くに置きます。</li><li><b>アンプなし：</b>マイクをピックアップに近づけます。</li><li><b>オーディオインターフェース</b>（iRig、Focusrite など）が最も正確。設定 → マイクで選びます。</li>',
+refTitle:'基準音 (R)',ref:'基準音',start:'開始',stop:'停止',tuningsTitle:'チューニング (T)',tunings:'チューニング',pickTitle:'チューニングを選択',searchPh:'検索：drop、C#、open…',newCustom:'＋ カスタムを作成',empty:'見つかりません。自分のチューニングを作れます ↓',cAll:'すべて',cFav:'★ お気に入り',cStd:'スタンダード',cDrop:'ドロップ',cOpen:'オープン',c7:'7弦',cOther:'その他',cCustom:'マイ',edCustom:'カスタムチューニング',edEdit:'チューニングを編集',namePh:'名前（例：「自分の曲」）',s6:'6弦',s7:'7弦',saveSel:'保存して選択',deleteT:'このチューニングを削除',edit:'編集',fav:'お気に入り',lower:'下げる',higher:'上げる',
+micT:'マイク',micSub:'内蔵マイクまたはオーディオIF',defaultDev:'デフォルト',micN:'マイク {n}',a4T:'A4 の周波数',a4Sub:'通常は 440 Hz',less:'下げる',more:'上げる',tolT:'精度',tolSub:'どこまで近ければ「合っている」とするか',tolStudio:'±2 セント — スタジオ',tolPrecise:'±4 セント — 正確',tolFast:'±7 セント — 速い',sensT:'感度',sensSub:'高いと小さな音も拾うがノイズも拾う',vibT:'バイブレーション',vibSub:'弦が合ったら振動（Android）',wakeT:'画面を消さない',wakeSub:'マイク使用中',clickT:'「合った」音',clickSub:'弦が合ったら短いクリック音',langT:'言語',langSub:'表示言語',
+listening:'聞いています…',pluckAny:'どれか開放弦を弾いてください',pluckN:'{n}弦を弾いてください（{note}）',nowN:'次は{n}弦 → {note}',whenReady:'準備ができたら弾いてください',inTune:'{n}弦が合いました',allDone:'すべての弦が合いました 🎉',guidedNext:'そのまま鳴らして — 次の弦へ進みます',canNext:'次の弦へ進めます',tighten:'{n}弦を締める',loosen:'{n}弦を緩める',soundsLow:'低すぎます',soundsHigh:'高すぎます',moreSemis:'あと {s} 半音 · ペグ約 {a}〜{b} 回転',bit:'少し、⅛回転以下',tiny:'ほんの少しペグに触れる程度',pressStart:'「開始」を押してください',idleSub:'開放弦を弾いてください。目標：{n}弦 — {note}',toastTuned:'🤘 チューニング完了：{t}',toastTuning:'チューニング：{t}',toastRef:'基準音：{n}弦 — {note}',saved:'保存しました：{t}',deleted:'チューニングを削除しました',myTuning:'マイチューニング',errDenied:'ブラウザがマイクをブロックしました。アドレスバー横の鍵またはマイクのアイコンから許可して、もう一度試してください。',errMic:'マイクを開始できません：',errNoApi:'このブラウザはマイクを使えません。Chrome、Edge、Safari で開いてください。',allFourths:'全4度',dStd:'普通のチューニング',dHalf:'半音下げ',dWhole:'全音下げ',dDropD:'6弦を全音下げ',dSlide:'スライド、ブルース',dCeltic:'ケルト、フィンガースタイル',dNash:'12弦セットの弦を使用',dMine:'マイチューニング'},
+
+ko:{title:'Stroy — 기타 튜너',appName:'Stroy',appSub:'기타 튜너',settings:'설정',chooseTuning:'튜닝 선택',close:'닫기',low:'♭ 낮음',high:'높음 ♯',cents:'센트',hz:'Hz',target:'목표',history:'기록',lgHigh:'높음',lgOk:'맞음',lgLow:'낮음',stringsTitle:'줄',nStrings:'{n}현',mAuto:'자동',mGuided:'순서대로',mManual:'한 줄',resetMarks:'표시 초기화',doneChip:'✓ 완료',sameChip:'표준과 같음',semi:'반음',stdShort:'표준',fromStdNone:'표준 튜닝입니다 — 바꿀 것 없이 미세 조정만 하세요.',fromStd:'표준 대비:',sShort:'{n}번',loosenBy:'{n}반음 내리기',tightenBy:'{n}반음 올리기',
+howTitle:'튜닝 방법',howHtml:'<li>줄 옆의 색 표시는 표준에서 얼마나 바꿀지 보여줍니다: <b style="color:var(--low)">−2</b> = 반음 2개 내리기, <b style="color:var(--high)">+1</b> = 올리기.</li><li><b>개방현 한 줄만</b> 쳐서 울리게 두세요. 나머지는 손바닥으로 뮤트하세요.</li><li>바늘이 <b style="color:var(--low)">왼쪽</b>이면 낮으니 조이고, <b style="color:var(--high)">오른쪽</b>이면 높으니 푸세요.</li><li>반음 하나는 보통 줄감개 약 ¼–½ 바퀴입니다. 참고용입니다.</li><li>음에는 <b>아래에서 위로</b> 맞추세요. 지나치면 조금 내렸다가 다시 올리세요.</li><li><b>«순서대로»</b> 모드는 다음 줄로 자동 이동합니다.</li><li>단축키: <kbd>Space</kbd> — 마이크, <kbd>1</kbd>–<kbd>7</kbd> — 줄, <kbd>R</kbd> — 기준음, <kbd>T</kbd> — 튜닝.</li>',
+connTitle:'일렉트릭 기타 연결 방법',connHtml:'<li><b>앰프 사용:</b> 휴대폰이나 노트북을 스피커 옆에 두세요.</li><li><b>앰프 없이:</b> 마이크를 픽업 가까이에 대세요.</li><li><b>오디오 인터페이스</b>(iRig, Focusrite 등)가 가장 정확합니다. 설정 → 마이크에서 선택하세요.</li>',
+refTitle:'기준음 (R)',ref:'기준음',start:'시작',stop:'정지',tuningsTitle:'튜닝 (T)',tunings:'튜닝',pickTitle:'튜닝 선택',searchPh:'검색: drop, C#, open…',newCustom:'＋ 나만의 튜닝 만들기',empty:'찾을 수 없습니다. 나만의 튜닝을 만들 수 있어요 ↓',cAll:'전체',cFav:'★ 즐겨찾기',cStd:'스탠다드',cDrop:'드롭',cOpen:'오픈',c7:'7현',cOther:'기타',cCustom:'내 튜닝',edCustom:'나만의 튜닝',edEdit:'튜닝 편집',namePh:'이름, 예: «내 노래»',s6:'6현',s7:'7현',saveSel:'저장하고 선택',deleteT:'이 튜닝 삭제',edit:'편집',fav:'즐겨찾기',lower:'내리기',higher:'올리기',
+micT:'마이크',micSub:'내장 마이크 또는 오디오 인터페이스',defaultDev:'기본값',micN:'마이크 {n}',a4T:'A4 주파수',a4Sub:'보통 440 Hz',less:'줄이기',more:'늘리기',tolT:'정밀도',tolSub:'얼마나 가까우면 «맞음»으로 볼지',tolStudio:'±2 센트 — 스튜디오',tolPrecise:'±4 센트 — 정확',tolFast:'±7 센트 — 빠름',sensT:'감도',sensSub:'높을수록 작은 소리도 잡지만 잡음도 잡습니다',vibT:'진동',vibSub:'줄이 맞으면 진동 (Android)',wakeT:'화면 켜두기',wakeSub:'마이크가 켜져 있는 동안',clickT:'«맞음» 소리',clickSub:'줄이 맞으면 짧은 클릭음',langT:'언어',langSub:'인터페이스 언어',
+listening:'듣는 중…',pluckAny:'아무 개방현이나 치세요',pluckN:'{n}번 줄을 치세요 ({note})',nowN:'이제 {n}번 줄 → {note}',whenReady:'준비되면 치세요',inTune:'{n}번 줄이 맞았습니다',allDone:'모든 줄이 맞았습니다 🎉',guidedNext:'계속 울리세요 — 다음 줄로 넘어갑니다',canNext:'다음 줄로 넘어가세요',tighten:'{n}번 줄을 조이세요',loosen:'{n}번 줄을 푸세요',soundsLow:'음이 낮습니다',soundsHigh:'음이 높습니다',moreSemis:'{s}반음 남음 · 줄감개 약 {a}–{b} 바퀴',bit:'조금, ⅛ 바퀴 이하',tiny:'아주 살짝만 돌리세요',pressStart:'«시작»을 누르세요',idleSub:'개방현을 치세요. 목표: {n}번 줄 — {note}',toastTuned:'🤘 기타 튜닝 완료: {t}',toastTuning:'튜닝: {t}',toastRef:'기준음: {n}번 줄 — {note}',saved:'저장됨: {t}',deleted:'튜닝이 삭제되었습니다',myTuning:'내 튜닝',errDenied:'브라우저가 마이크를 차단했습니다. 주소창 옆의 자물쇠나 마이크 아이콘을 눌러 허용한 뒤 다시 시도하세요.',errMic:'마이크를 켤 수 없습니다: ',errNoApi:'이 브라우저는 마이크를 지원하지 않습니다. Chrome, Edge 또는 Safari에서 여세요.',allFourths:'전부 4도',dStd:'일반 튜닝',dHalf:'반음 다운',dWhole:'온음 다운',dDropD:'6번 줄 온음 다운',dSlide:'슬라이드, 블루스',dCeltic:'켈틱, 핑거스타일',dNash:'12현 세트의 줄 사용',dMine:'내 튜닝'},
+
+ar:{title:'Stroy — مُدوزن الغيتار',appName:'Stroy',appSub:'مُدوزن الغيتار',settings:'الإعدادات',chooseTuning:'اختيار الدوزان',close:'إغلاق',low:'♭ منخفض',high:'مرتفع ♯',cents:'سنت',hz:'هرتز',target:'الهدف',history:'السجل',lgHigh:'مرتفع',lgOk:'مضبوط',lgLow:'منخفض',stringsTitle:'الأوتار',nStrings:'{n} أوتار',mAuto:'تلقائي',mGuided:'بالترتيب',mManual:'وتر واحد',resetMarks:'إعادة تعيين العلامات',doneChip:'✓ تم',sameChip:'كالقياسي',semi:'نصف',stdShort:'قياسي',fromStdNone:'هذا هو الدوزان القياسي — لا تغيّر شيئًا، اضبط فقط.',fromStd:'من القياسي:',sShort:'الوتر {n}',loosenBy:'اخفض {n} نصف تون',tightenBy:'ارفع {n} نصف تون',
+howTitle:'طريقة الدوزنة',howHtml:'<li>العلامة الملونة بجانب الوتر تبيّن مقدار تغييره عن القياسي: <b style="color:var(--low)">−2</b> = اخفضه نصفي تون، <b style="color:var(--high)">+1</b> = ارفعه.</li><li>انقر <b>وترًا مطلقًا واحدًا</b> ودعه يرنّ. اكتم البقية براحة يدك.</li><li>المؤشر <b style="color:var(--low)">يسارًا</b>: منخفض، شُدّ. <b style="color:var(--high)">يمينًا</b>: مرتفع، أرخِ.</li><li>نصف التون عادةً ¼–½ لفة من المفتاح تقريبًا.</li><li>اقترب من النغمة <b>من الأسفل</b>: إن تجاوزتها فاخفض قليلًا ثم ارفع مجددًا.</li><li>وضع <b>«بالترتيب»</b> ينتقل تلقائيًا إلى الوتر التالي.</li><li>المفاتيح: <kbd>Space</kbd> — الميكروفون، <kbd>1</kbd>–<kbd>7</kbd> — الوتر، <kbd>R</kbd> — المرجع، <kbd>T</kbd> — الدوزانات.</li>',
+connTitle:'توصيل الغيتار الكهربائي',connHtml:'<li><b>عبر المضخّم:</b> ضع الهاتف أو الحاسوب قرب السمّاعة.</li><li><b>بدون مضخّم:</b> قرّب الميكروفون من اللواقط.</li><li><b>واجهة صوت</b> (iRig أو Focusrite…) هي الأدق. اخترها من الإعدادات ← الميكروفون.</li>',
+refTitle:'نغمة مرجعية (R)',ref:'مرجع',start:'ابدأ',stop:'إيقاف',tuningsTitle:'الدوزانات (T)',tunings:'الدوزانات',pickTitle:'اختر دوزانًا',searchPh:'بحث: drop، C#، open…',newCustom:'＋ أنشئ دوزانك الخاص',empty:'لا نتائج. يمكنك إنشاء دوزانك الخاص ↓',cAll:'الكل',cFav:'★ المفضلة',cStd:'قياسي',cDrop:'Drop',cOpen:'مفتوح',c7:'7 أوتار',cOther:'أخرى',cCustom:'خاصتي',edCustom:'دوزاني',edEdit:'تعديل الدوزان',namePh:'الاسم، مثل «أغنيتي»',s6:'6 أوتار',s7:'7 أوتار',saveSel:'حفظ واختيار',deleteT:'حذف هذا الدوزان',edit:'تعديل',fav:'مفضلة',lower:'أخفض',higher:'أعلى',
+micT:'الميكروفون',micSub:'مدمج أو واجهة صوت',defaultDev:'الافتراضي',micN:'ميكروفون {n}',a4T:'تردد A4',a4Sub:'عادةً 440 هرتز',less:'أقل',more:'أكثر',tolT:'الدقة',tolSub:'متى يُعدّ الوتر «مضبوطًا»',tolStudio:'±2 سنت — استوديو',tolPrecise:'±4 سنت — دقيق',tolFast:'±7 سنت — سريع',sensT:'الحساسية',sensSub:'الأعلى يلتقط الأصوات الخافتة والضجيج أيضًا',vibT:'الاهتزاز',vibSub:'تنبيه عند ضبط الوتر (Android)',wakeT:'إبقاء الشاشة مضاءة',wakeSub:'أثناء عمل الميكروفون',clickT:'صوت «مضبوط»',clickSub:'نقرة قصيرة عند ضبط الوتر',langT:'اللغة',langSub:'لغة الواجهة',
+listening:'أستمع…',pluckAny:'انقر أي وتر مطلق',pluckN:'انقر الوتر {n} ({note})',nowN:'الآن الوتر {n} ← {note}',whenReady:'انقره عندما تكون جاهزًا',inTune:'الوتر {n} مضبوط',allDone:'جميع الأوتار مضبوطة 🎉',guidedNext:'دعه يرنّ — ننتقل إلى التالي',canNext:'انتقل إلى الوتر التالي',tighten:'شُدّ الوتر {n}',loosen:'أرخِ الوتر {n}',soundsLow:'الصوت منخفض',soundsHigh:'الصوت مرتفع',moreSemis:'باقٍ {s} نصف تون · نحو {a}–{b} لفة من المفتاح',bit:'قليلًا، ⅛ لفة أو أقل',tiny:'لمسة خفيفة جدًا على المفتاح',pressStart:'اضغط «ابدأ»',idleSub:'وانقر وترًا مطلقًا. الهدف: الوتر {n} — {note}',toastTuned:'🤘 الغيتار مضبوط: {t}',toastTuning:'الدوزان: {t}',toastRef:'المرجع: الوتر {n} — {note}',saved:'تم الحفظ: {t}',deleted:'تم حذف الدوزان',myTuning:'دوزاني',errDenied:'حظر المتصفح الميكروفون. انقر رمز القفل أو الميكروفون بجانب شريط العنوان، واسمح بالوصول ثم أعد المحاولة.',errMic:'تعذّر تشغيل الميكروفون: ',errNoApi:'هذا المتصفح لا يتيح الميكروفون. افتح الصفحة في Chrome أو Edge أو Safari.',allFourths:'رباعيات كاملة',dStd:'الدوزان المعتاد',dHalf:'أخفض بنصف تون',dWhole:'أخفض بتون كامل',dDropD:'الوتر 6 أخفض بتون',dSlide:'سلايد، بلوز',dCeltic:'كلتي، عزف بالأصابع',dNash:'أوتار من طقم 12 وترًا',dMine:'دوزاني'},
+
+hi:{title:'Stroy — गिटार ट्यूनर',appName:'Stroy',appSub:'गिटार ट्यूनर',settings:'सेटिंग्स',chooseTuning:'ट्यूनिंग चुनें',close:'बंद करें',low:'♭ नीचा',high:'ऊँचा ♯',cents:'सेंट',hz:'Hz',target:'लक्ष्य',history:'इतिहास',lgHigh:'ऊँचा',lgOk:'ट्यून में',lgLow:'नीचा',stringsTitle:'तार',nStrings:'{n} तार',mAuto:'ऑटो',mGuided:'क्रम से',mManual:'एक तार',resetMarks:'निशान हटाएँ',doneChip:'✓ हो गया',sameChip:'स्टैंडर्ड जैसा',semi:'सेमी',stdShort:'स्टैं.',fromStdNone:'यह स्टैंडर्ड ट्यूनिंग है — कुछ न बदलें, बस बारीक ट्यून करें।',fromStd:'स्टैंडर्ड से:',sShort:'तार {n}',loosenBy:'{n} सेमीटोन नीचे',tightenBy:'{n} सेमीटोन ऊपर',
+howTitle:'कैसे ट्यून करें',howHtml:'<li>तार के पास रंगीन टैग बताता है कि स्टैंडर्ड से कितना बदलना है: <b style="color:var(--low)">−2</b> = 2 सेमीटोन नीचे, <b style="color:var(--high)">+1</b> = ऊपर।</li><li><b>एक खुला</b> तार बजाएँ और बजने दें। बाकी को हथेली से दबाएँ।</li><li>सुई <b style="color:var(--low)">बाईं</b> ओर: नीचा, कसें। <b style="color:var(--high)">दाईं</b> ओर: ऊँचा, ढीला करें।</li><li>एक सेमीटोन आमतौर पर खूँटी का लगभग ¼–½ चक्कर होता है।</li><li>सुर तक <b>नीचे से ऊपर</b> पहुँचें: आगे निकल जाएँ तो थोड़ा नीचे करके फिर ऊपर करें।</li><li><b>«क्रम से»</b> मोड अपने आप अगले तार पर जाता है।</li><li>कुंजियाँ: <kbd>Space</kbd> — माइक, <kbd>1</kbd>–<kbd>7</kbd> — तार, <kbd>R</kbd> — संदर्भ, <kbd>T</kbd> — ट्यूनिंग।</li>',
+connTitle:'इलेक्ट्रिक गिटार कैसे जोड़ें',connHtml:'<li><b>एम्प के साथ:</b> फ़ोन या लैपटॉप स्पीकर के पास रखें।</li><li><b>बिना एम्प:</b> माइक को पिकअप के पास लाएँ।</li><li><b>ऑडियो इंटरफ़ेस</b> (iRig, Focusrite…) सबसे सटीक है। सेटिंग्स → माइक्रोफ़ोन में चुनें।</li>',
+refTitle:'संदर्भ ध्वनि (R)',ref:'संदर्भ',start:'शुरू करें',stop:'रोकें',tuningsTitle:'ट्यूनिंग (T)',tunings:'ट्यूनिंग',pickTitle:'ट्यूनिंग चुनें',searchPh:'खोजें: drop, C#, open…',newCustom:'＋ अपनी ट्यूनिंग बनाएँ',empty:'कुछ नहीं मिला। आप अपनी ट्यूनिंग बना सकते हैं ↓',cAll:'सभी',cFav:'★ पसंदीदा',cStd:'स्टैंडर्ड',cDrop:'Drop',cOpen:'ओपन',c7:'7 तार',cOther:'अन्य',cCustom:'मेरी',edCustom:'अपनी ट्यूनिंग',edEdit:'ट्यूनिंग बदलें',namePh:'नाम, जैसे «मेरा गाना»',s6:'6 तार',s7:'7 तार',saveSel:'सहेजें और चुनें',deleteT:'यह ट्यूनिंग हटाएँ',edit:'बदलें',fav:'पसंदीदा',lower:'नीचे',higher:'ऊपर',
+micT:'माइक्रोफ़ोन',micSub:'बिल्ट-इन या ऑडियो इंटरफ़ेस',defaultDev:'डिफ़ॉल्ट',micN:'माइक्रोफ़ोन {n}',a4T:'A4 आवृत्ति',a4Sub:'आमतौर पर 440 Hz',less:'कम',more:'ज़्यादा',tolT:'सटीकता',tolSub:'कितना पास «ट्यून में» माना जाए',tolStudio:'±2 सेंट — स्टूडियो',tolPrecise:'±4 सेंट — सटीक',tolFast:'±7 सेंट — तेज़',sensT:'संवेदनशीलता',sensSub:'ज़्यादा होने पर धीमी आवाज़ और शोर दोनों पकड़ता है',vibT:'कंपन',vibSub:'तार ट्यून होने पर कंपन (Android)',wakeT:'स्क्रीन चालू रखें',wakeSub:'जब तक माइक चालू है',clickT:'«ट्यून में» ध्वनि',clickSub:'तार ट्यून होने पर छोटी क्लिक',langT:'भाषा',langSub:'इंटरफ़ेस की भाषा',
+listening:'सुन रहा हूँ…',pluckAny:'कोई भी खुला तार बजाएँ',pluckN:'तार {n} बजाएँ ({note})',nowN:'अब तार {n} → {note}',whenReady:'तैयार हों तो बजाएँ',inTune:'तार {n} ट्यून में है',allDone:'सभी तार ट्यून हो गए 🎉',guidedNext:'बजने दें — अगले पर चल रहे हैं',canNext:'अगले तार पर जाएँ',tighten:'तार {n} कसें',loosen:'तार {n} ढीला करें',soundsLow:'आवाज़ नीची है',soundsHigh:'आवाज़ ऊँची है',moreSemis:'{s} सेमीटोन बाकी · खूँटी का लगभग {a}–{b} चक्कर',bit:'थोड़ा, ⅛ चक्कर या कम',tiny:'खूँटी को बस हल्का-सा छुएँ',pressStart:'«शुरू करें» दबाएँ',idleSub:'और एक खुला तार बजाएँ। लक्ष्य: तार {n} — {note}',toastTuned:'🤘 गिटार ट्यून में: {t}',toastTuning:'ट्यूनिंग: {t}',toastRef:'संदर्भ: तार {n} — {note}',saved:'सहेजा गया: {t}',deleted:'ट्यूनिंग हटाई गई',myTuning:'मेरी ट्यूनिंग',errDenied:'ब्राउज़र ने माइक्रोफ़ोन रोक दिया। एड्रेस बार के पास ताले या माइक आइकन पर क्लिक करें, अनुमति दें और फिर कोशिश करें।',errMic:'माइक्रोफ़ोन शुरू नहीं हो सका: ',errNoApi:'यह ब्राउज़र माइक्रोफ़ोन की अनुमति नहीं देता। पेज को Chrome, Edge या Safari में खोलें।',allFourths:'सभी चौथे',dStd:'सामान्य ट्यूनिंग',dHalf:'आधा सुर नीचे',dWhole:'पूरा सुर नीचे',dDropD:'6वाँ तार एक सुर नीचे',dSlide:'स्लाइड, ब्लूज़',dCeltic:'केल्टिक, फ़िंगरस्टाइल',dNash:'12-तार सेट के तार',dMine:'मेरी ट्यूनिंग'}
+};
+
+const I18N_V4={
+ru:{viewNeedle:'Стрелка',viewStrobe:'Строб',inton:'Проверка мензуры',intonSub:'12-й лад против открытой струны',intonPluck:'зажми {n}-ю струну на 12-м ладу и дёрни',intonSharp:'12-й лад выше — отодвинь седло {n}-й струны от грифа',intonFlat:'12-й лад ниже — придвинь седло {n}-й струны к грифу',intonOk:'Мензура {n}-й струны в порядке',intonHint:'сначала настрой открытую струну, потом проверь 12-й лад',refPlaying:'Звучит эталон',refPlayingSub:'тюнер не слушает, чтобы не путаться — нажми ещё раз, чтобы остановить',quiet:'Не слышу струну',quietSub:'поднеси микрофон ближе или подними чувствительность в настройках',strobeHint:'полосы бегут — струна расстроена, стоят — в строю'},
+uk:{viewNeedle:'Стрілка',viewStrobe:'Строб',inton:'Перевірка мензури',intonSub:'12-й лад проти відкритої струни',intonPluck:'затисни {n}-у струну на 12-му ладу й смикни',intonSharp:'12-й лад вище — відсунь сідло {n}-ї струни від грифа',intonFlat:'12-й лад нижче — присунь сідло {n}-ї струни до грифа',intonOk:'Мензура {n}-ї струни в порядку',intonHint:'спершу налаштуй відкриту струну, потім перевір 12-й лад',refPlaying:'Звучить еталон',refPlayingSub:'тюнер не слухає, щоб не плутатися — натисни ще раз, щоб зупинити',quiet:'Не чую струну',quietSub:'піднеси мікрофон ближче або підвищ чутливість у налаштуваннях',strobeHint:'смуги біжать — струна розлаштована, стоять — у строї'},
+en:{viewNeedle:'Needle',viewStrobe:'Strobe',inton:'Intonation check',intonSub:'12th fret vs open string',intonPluck:'fret string {n} at the 12th fret and pluck',intonSharp:'12th fret is sharp — move the string {n} saddle away from the neck',intonFlat:'12th fret is flat — move the string {n} saddle toward the neck',intonOk:'String {n} intonation is good',intonHint:'tune the open string first, then check the 12th fret',refPlaying:'Reference playing',refPlayingSub:'the tuner pauses so it does not hear itself — press again to stop',quiet:'Can’t hear the string',quietSub:'move the mic closer or raise sensitivity in Settings',strobeHint:'moving bands — out of tune, still bands — in tune'},
+fr:{viewNeedle:'Aiguille',viewStrobe:'Strobo',inton:'Vérifier l’intonation',intonSub:'12e case contre corde à vide',intonPluck:'appuyez la corde {n} à la 12e case et grattez',intonSharp:'12e case trop haute — reculez le pontet de la corde {n} (loin du manche)',intonFlat:'12e case trop basse — avancez le pontet de la corde {n} vers le manche',intonOk:'Intonation de la corde {n} correcte',intonHint:'accordez d’abord la corde à vide, puis vérifiez la 12e case',refPlaying:'Référence en cours',refPlayingSub:'l’accordeur se met en pause pour ne pas s’entendre — appuyez à nouveau pour arrêter',quiet:'Je n’entends pas la corde',quietSub:'rapprochez le micro ou augmentez la sensibilité dans les réglages',strobeHint:'bandes qui défilent — faux, bandes immobiles — juste'},
+de:{viewNeedle:'Zeiger',viewStrobe:'Strobe',inton:'Oktavreinheit prüfen',intonSub:'12. Bund gegen leere Saite',intonPluck:'Saite {n} im 12. Bund greifen und anschlagen',intonSharp:'12. Bund zu hoch — Reiter von Saite {n} vom Hals weg bewegen',intonFlat:'12. Bund zu tief — Reiter von Saite {n} zum Hals hin bewegen',intonOk:'Oktavreinheit von Saite {n} passt',intonHint:'erst die leere Saite stimmen, dann den 12. Bund prüfen',refPlaying:'Referenz läuft',refPlayingSub:'das Stimmgerät pausiert, um sich nicht selbst zu hören — erneut drücken zum Stoppen',quiet:'Ich höre die Saite nicht',quietSub:'Mikro näher halten oder Empfindlichkeit in den Einstellungen erhöhen',strobeHint:'laufende Streifen — verstimmt, stehende — gestimmt'},
+es:{viewNeedle:'Aguja',viewStrobe:'Estrobo',inton:'Comprobar octavación',intonSub:'traste 12 frente a cuerda al aire',intonPluck:'pisa la cuerda {n} en el traste 12 y tócala',intonSharp:'traste 12 alto — aleja del mástil la silleta de la cuerda {n}',intonFlat:'traste 12 bajo — acerca al mástil la silleta de la cuerda {n}',intonOk:'Octavación de la cuerda {n} correcta',intonHint:'afina primero la cuerda al aire y luego comprueba el traste 12',refPlaying:'Suena la referencia',refPlayingSub:'el afinador se pausa para no oírse a sí mismo — pulsa otra vez para parar',quiet:'No oigo la cuerda',quietSub:'acerca el micrófono o sube la sensibilidad en Ajustes',strobeHint:'bandas en movimiento — desafinada, quietas — afinada'},
+pt:{viewNeedle:'Ponteiro',viewStrobe:'Estrobo',inton:'Verificar oitavação',intonSub:'12ª casa contra corda solta',intonPluck:'pressione a corda {n} na 12ª casa e toque',intonSharp:'12ª casa alta — afaste do braço o carrinho da corda {n}',intonFlat:'12ª casa baixa — aproxime do braço o carrinho da corda {n}',intonOk:'Oitavação da corda {n} certa',intonHint:'afine primeiro a corda solta e depois verifique a 12ª casa',refPlaying:'Referência a tocar',refPlayingSub:'o afinador pausa para não se ouvir — carregue de novo para parar',quiet:'Não ouço a corda',quietSub:'aproxime o microfone ou aumente a sensibilidade nas Configurações',strobeHint:'faixas a mover — desafinada, paradas — afinada'},
+it:{viewNeedle:'Ago',viewStrobe:'Strobo',inton:'Controllo intonazione',intonSub:'12° tasto contro corda a vuoto',intonPluck:'premi la corda {n} al 12° tasto e suona',intonSharp:'12° tasto crescente — allontana dal manico la sella della corda {n}',intonFlat:'12° tasto calante — avvicina al manico la sella della corda {n}',intonOk:'Intonazione della corda {n} corretta',intonHint:'accorda prima la corda a vuoto, poi controlla il 12° tasto',refPlaying:'Riferimento in riproduzione',refPlayingSub:'l’accordatore si ferma per non sentirsi — premi di nuovo per fermare',quiet:'Non sento la corda',quietSub:'avvicina il microfono o alza la sensibilità nelle Impostazioni',strobeHint:'bande in movimento — stonata, ferme — intonata'},
+pl:{viewNeedle:'Wskazówka',viewStrobe:'Stroboskop',inton:'Sprawdź menzurę',intonSub:'12. próg kontra pusta struna',intonPluck:'dociśnij strunę {n} na 12. progu i szarpnij',intonSharp:'12. próg za wysoko — odsuń siodełko struny {n} od gryfu',intonFlat:'12. próg za nisko — przysuń siodełko struny {n} do gryfu',intonOk:'Menzura struny {n} w porządku',intonHint:'najpierw nastrój pustą strunę, potem sprawdź 12. próg',refPlaying:'Gra wzorzec',refPlayingSub:'stroik pauzuje, żeby nie słyszeć siebie — naciśnij ponownie, by zatrzymać',quiet:'Nie słyszę struny',quietSub:'zbliż mikrofon lub zwiększ czułość w ustawieniach',strobeHint:'paski biegną — rozstrojona, stoją — nastrojona'},
+tr:{viewNeedle:'İbre',viewStrobe:'Strobe',inton:'Entonasyon kontrolü',intonSub:'12. perde ile boş tel',intonPluck:'{n}. teli 12. perdede bas ve çal',intonSharp:'12. perde tiz — {n}. telin eşiğini sapdan uzaklaştır',intonFlat:'12. perde pes — {n}. telin eşiğini sapa yaklaştır',intonOk:'{n}. telin entonasyonu doğru',intonHint:'önce boş teli akort et, sonra 12. perdeyi kontrol et',refPlaying:'Referans çalıyor',refPlayingSub:'akort aleti kendini duymamak için duraklar — durdurmak için tekrar bas',quiet:'Teli duyamıyorum',quietSub:'mikrofonu yaklaştır veya ayarlardan duyarlılığı artır',strobeHint:'şeritler kayıyor — akortsuz, duruyor — akortlu'},
+zh:{viewNeedle:'指针',viewStrobe:'频闪',inton:'音准（八度）检查',intonSub:'12 品与空弦对比',intonPluck:'按住第 {n} 弦 12 品并拨弦',intonSharp:'12 品偏高 — 把第 {n} 弦的弦鞍往远离琴颈方向移',intonFlat:'12 品偏低 — 把第 {n} 弦的弦鞍往琴颈方向移',intonOk:'第 {n} 弦音准良好',intonHint:'先调准空弦，再检查 12 品',refPlaying:'正在播放参考音',refPlayingSub:'调音器暂停聆听以免听到自己 — 再按一次停止',quiet:'听不到琴弦',quietSub:'把麦克风靠近一些，或在设置中提高灵敏度',strobeHint:'条纹移动 — 未调准，静止 — 已调准'},
+ja:{viewNeedle:'針',viewStrobe:'ストロボ',inton:'オクターブ調整チェック',intonSub:'12フレットと開放弦を比較',intonPluck:'{n}弦の12フレットを押さえて弾いてください',intonSharp:'12フレットが高い — {n}弦のサドルをネックから離す',intonFlat:'12フレットが低い — {n}弦のサドルをネック側へ寄せる',intonOk:'{n}弦のオクターブは良好',intonHint:'先に開放弦を合わせてから12フレットを確認',refPlaying:'基準音を再生中',refPlayingSub:'自分の音を拾わないよう一時停止中 — もう一度押すと停止',quiet:'弦の音が聞こえません',quietSub:'マイクを近づけるか、設定で感度を上げてください',strobeHint:'縞が流れる — ずれている、止まる — 合っている'},
+ko:{viewNeedle:'바늘',viewStrobe:'스트로브',inton:'인토네이션 점검',intonSub:'12프렛 대 개방현',intonPluck:'{n}번 줄 12프렛을 누르고 치세요',intonSharp:'12프렛이 높음 — {n}번 줄 새들을 넥에서 멀리',intonFlat:'12프렛이 낮음 — {n}번 줄 새들을 넥 쪽으로',intonOk:'{n}번 줄 인토네이션 양호',intonHint:'먼저 개방현을 맞춘 뒤 12프렛을 확인하세요',refPlaying:'기준음 재생 중',refPlayingSub:'자기 소리를 듣지 않도록 잠시 멈춤 — 다시 누르면 정지',quiet:'줄 소리가 안 들립니다',quietSub:'마이크를 가까이 하거나 설정에서 감도를 높이세요',strobeHint:'줄무늬가 움직이면 틀림, 멈추면 맞음'},
+ar:{viewNeedle:'مؤشر',viewStrobe:'ستروب',inton:'فحص ضبط الأوكتاف',intonSub:'الدستان 12 مقابل الوتر المطلق',intonPluck:'اضغط الوتر {n} على الدستان 12 وانقره',intonSharp:'الدستان 12 مرتفع — حرّك فرس الوتر {n} بعيدًا عن الزند',intonFlat:'الدستان 12 منخفض — حرّك فرس الوتر {n} نحو الزند',intonOk:'ضبط أوكتاف الوتر {n} سليم',intonHint:'اضبط الوتر المطلق أولًا ثم افحص الدستان 12',refPlaying:'النغمة المرجعية تعمل',refPlayingSub:'المُدوزن متوقف كي لا يسمع نفسه — اضغط مجددًا للإيقاف',quiet:'لا أسمع الوتر',quietSub:'قرّب الميكروفون أو ارفع الحساسية من الإعدادات',strobeHint:'الخطوط تتحرك — غير مضبوط، ثابتة — مضبوط'},
+hi:{viewNeedle:'सुई',viewStrobe:'स्ट्रोब',inton:'इंटोनेशन जाँच',intonSub:'12वाँ फ़्रेट बनाम खुला तार',intonPluck:'तार {n} को 12वें फ़्रेट पर दबाकर बजाएँ',intonSharp:'12वाँ फ़्रेट ऊँचा — तार {n} की सैडल नेक से दूर करें',intonFlat:'12वाँ फ़्रेट नीचा — तार {n} की सैडल नेक की ओर करें',intonOk:'तार {n} का इंटोनेशन ठीक है',intonHint:'पहले खुला तार ट्यून करें, फिर 12वाँ फ़्रेट जाँचें',refPlaying:'संदर्भ ध्वनि बज रही है',refPlayingSub:'ट्यूनर खुद को न सुने इसलिए रुका है — रोकने के लिए फिर दबाएँ',quiet:'तार सुनाई नहीं दे रहा',quietSub:'माइक पास लाएँ या सेटिंग्स में संवेदनशीलता बढ़ाएँ',strobeHint:'पट्टियाँ चलें — बेसुरा, रुकें — सुर में'}
+};
+for(const k in I18N_V4)Object.assign(I18N[k],I18N_V4[k]);
+const CREDIT_I18N={"ru": "Создатель: {n}", "uk": "Автор: {n}", "en": "Made by {n}", "fr": "Créé par {n}", "de": "Erstellt von {n}", "es": "Creado por {n}", "pt": "Criado por {n}", "it": "Creato da {n}", "pl": "Autor: {n}", "tr": "Yapımcı: {n}", "zh": "作者：{n}", "ja": "作者：{n}", "ko": "제작: {n}", "ar": "من إنشاء {n}", "hi": "निर्माता: {n}"};
+for(const k in CREDIT_I18N)I18N[k].madeBy=CREDIT_I18N[k];
+
+</script>
+<script>
+"use strict";
+/* ================= music ================= */
+const NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLATS={Db:'C#',Eb:'D#',Gb:'F#',Ab:'G#',Bb:'A#'};
+const pn=s=>{const m=s.match(/^([A-G][#b]?)(-?\d)$/);let n=m[1];if(FLATS[n])n=FLATS[n];return NAMES.indexOf(n)+(+m[2]+1)*12};
+const nm=m=>NAMES[((m%12)+12)%12], oc=m=>Math.floor(m/12)-1;
+const S={lang:'',view:'needle',inton:false,a4:440,tol:4,sens:6,vib:true,wake:true,click:false,device:'',tuning:'std',fav:['std','dropd'],custom:[]};
+const fq=m=>S.a4*Math.pow(2,(m-69)/12);
+let LANG='ru';
+function t(k,v){let x=(I18N[LANG]&&I18N[LANG][k]!=null)?I18N[LANG][k]:(I18N.en[k]!=null?I18N.en[k]:k);
+  if(v)x=x.replace(/\{(\w+)\}/g,(m,n)=>v[n]!=null?v[n]:m);return x}
+const tn=tt=>tt.name.startsWith('@')?t(tt.name.slice(1)):tt.name;
+const td=tt=>!tt.desc?'':tt.desc.startsWith('@')?t(tt.desc.slice(1)):tt.desc;
+const noteHTML=(m,octave=true)=>{const n=nm(m);return n.length>1?`${n[0]}<sup>♯</sup>${octave?`<sub>${oc(m)}</sub>`:''}`:`${n}${octave?`<sub>${oc(m)}</sub>`:''}`};
+const plain=m=>nm(m);
+
+const STD6='E2 A2 D3 G3 B3 E4'.split(' ').map(pn), STD7='B1 E2 A2 D3 G3 B3 E4'.split(' ').map(pn);
+const T=(id,name,cat,notes,desc='')=>({id,name,cat,notes:notes.split(' ').map(pn),desc});
+const BUILTIN=[
+  T('std','E Standard','std','E2 A2 D3 G3 B3 E4','@dStd'),
+  T('eb','Eb Standard','std','D#2 G#2 C#3 F#3 A#3 D#4','@dHalf'),
+  T('dstd','D Standard','std','D2 G2 C3 F3 A3 D4','@dWhole'),
+  T('csstd','C# Standard','std','C#2 F#2 B2 E3 G#3 C#4'),
+  T('cstd','C Standard','std','C2 F2 A#2 D#3 G3 C4'),
+  T('bstd','B Standard','std','B1 E2 A2 D3 F#3 B3'),
+  T('astd','A Standard','std','A1 D2 G2 C3 E3 A3'),
+  T('dropd','Drop D','drop','D2 A2 D3 G3 B3 E4','@dDropD'),
+  T('dropcs','Drop C#','drop','C#2 G#2 C#3 F#3 A#3 D#4'),
+  T('dropc','Drop C','drop','C2 G2 C3 F3 A3 D4'),
+  T('dropb','Drop B','drop','B1 F#2 B2 E3 G#3 C#4'),
+  T('dropas','Drop A#','drop','A#1 F2 A#2 D#3 G3 C4'),
+  T('dropa','Drop A','drop','A1 E2 A2 D3 F#3 B3'),
+  T('ddd','Double Drop D','drop','D2 A2 D3 G3 B3 D4'),
+  T('openg','Open G','open','D2 G2 D3 G3 B3 D4','@dSlide'),
+  T('opend','Open D','open','D2 A2 D3 F#3 A3 D4'),
+  T('opene','Open E','open','E2 B2 E3 G#3 B3 E4'),
+  T('opena','Open A','open','E2 A2 E3 A3 C#4 E4'),
+  T('openc','Open C','open','C2 G2 C3 G3 C4 E4'),
+  T('opendm','Open D minor','open','D2 A2 D3 F3 A3 D4'),
+  T('dadgad','DADGAD','open','D2 A2 D3 G3 A3 D4','@dCeltic'),
+  T('p4','@allFourths','other','E2 A2 D3 G3 C4 F4'),
+  T('nst','Nashville','other','E3 A3 D4 G3 B3 E4','@dNash'),
+  T('s7std','7 · B Standard','s7','B1 E2 A2 D3 G3 B3 E4'),
+  T('s7dropa','7 · Drop A','s7','A1 E2 A2 D3 G3 B3 E4'),
+  T('s7astd','7 · A Standard','s7','A1 D2 G2 C3 F3 A3 D4'),
+  T('s7dropg','7 · Drop G#','s7','G#1 D#2 G#2 C#3 F#3 A#3 D#4'),
+];
+const CATS=[['all','cAll'],['fav','cFav'],['std','cStd'],['drop','cDrop'],['open','cOpen'],['s7','c7'],['other','cOther'],['custom','cCustom']];
+
+/* ================= persistence ================= */
+const LS='stroy.v2';
+try{const j=JSON.parse(localStorage.getItem(LS)||'null');if(j)Object.assign(S,j)}catch(e){}
+const save=()=>{try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}};
+const allT=()=>[...BUILTIN,...S.custom.map(c=>({...c,cat:'custom'}))];
+const getT=id=>allT().find(t=>t.id===id)||BUILTIN[0];
+
+/* ================= state ================= */
+let tuning=getT(S.tuning);
+let active=0;              // index in tuning.notes (0 = lowest string)
+let mode='auto';           // auto | guided | manual
+let done=new Set();
+const $=id=>document.getElementById(id);
+const root=document.documentElement;
+
+/* ================= UI: header + strings ================= */
+function stdFor(t){return t.notes.length===7?STD7:STD6}
+function strNum(i){return tuning.notes.length-i}  // 6..1
+function renderTuning(){
+  $('tName').textContent=tn(tuning);
+  $('tNotes').textContent=tuning.notes.map(plain).join('  ');
+  $('tCount').textContent=t('nStrings',{n:tuning.notes.length});
+  renderStrings();
+}
+function renderStrings(){
+  const box=$('strings');box.innerHTML='';
+  const std=stdFor(tuning), n=tuning.notes.length;
+  // display high string at top like a tab? show 1st string on top
+  for(let i=n-1;i>=0;i--){
+    const m=tuning.notes[i], d=m-std[i];
+    const b=document.createElement('button');
+    b.className='sRow'+(i===active?' active':'')+(done.has(i)?' done':'');
+    b.dataset.i=i;
+    const th=1.2+ (i/(n-1||1)>=0?(n-1-i)/(n-1)*3.6:0); // thicker for low
+    const chg=done.has(i)?t('doneChip'):d===0?t('sameChip'):(d<0?`−${-d} ${t('semi')}`:`+${d} ${t('semi')}`);
+    b.innerHTML=`<span class="sNum">${strNum(i)}</span>
+      <span class="sMid"><span class="wire" style="height:${th.toFixed(1)}px"></span><span class="sNote">${noteHTML(m)}</span><span class="sHz num">${fq(m).toFixed(1)} ${t('hz')}</span></span>
+      <span class="chg ${done.has(i)?'':d===0?'same':d<0?'down':'up'}">${chg}</span>`;
+    b.onclick=()=>{active=i; if(mode==='auto')setMode('manual'); renderStrings(); resetTrack(); if(!running)idleStatus();};
+    box.appendChild(b);
+  }
+  const k=done.size, tot=n;
+  $('progTxt').textContent=`${k} / ${tot}`;
+  $('progArc').style.strokeDashoffset=(94.25*(1-k/tot)).toFixed(2);
+  const ch=tuning.notes.map((m,i)=>[i,m-std[i]]).filter(x=>x[1]);
+  $('changeNote').innerHTML=ch.length===0?t('fromStdNone')
+    :t('fromStd')+' '+ch.map(([i,d])=>`<b>${t('sShort',{n:strNum(i)})}</b> ${plain(std[i])}→${plain(tuning.notes[i])} <span style="color:var(--${d<0?'low':'high'})">${t(d<0?'loosenBy':'tightenBy',{n:Math.abs(d)})}</span>`).join(' · ');
+}
+function setMode(m){mode=m;['Auto','Guided','Manual'].forEach(x=>$('m'+x).classList.toggle('on',m===x.toLowerCase()));
+  if(m==='guided'){const nx=nextUndone(-1);if(nx!=null)active=nx;renderStrings();}}
+$('mAuto').onclick=()=>setMode('auto');$('mGuided').onclick=()=>setMode('guided');$('mManual').onclick=()=>setMode('manual');
+$('resetDone').onclick=()=>{done.clear();renderStrings();};
+function nextUndone(from){const n=tuning.notes.length;for(let k=1;k<=n;k++){const i=((from+k)%n+n)%n;if(!done.has(i))return i}return null}
+function firstChanged(){const std=stdFor(tuning);const i=tuning.notes.findIndex((m,k)=>m!==std[k]);return i<0?0:i}
+function selectTuning(id){tuning=getT(id);S.tuning=tuning.id;save();done.clear();active=firstChanged();resetTrack();renderTuning();if(!running)idleStatus();}
+
+/* ================= gauge geometry ================= */
+const CX=200,CY=210,R=160,SPAN=72; // degrees each side
+const pol=(deg,r)=>{const a=(deg-90)*Math.PI/180;return[CX+r*Math.cos(a),CY+r*Math.sin(a)]};
+const arc=(d1,d2,r)=>{const[a,b]=pol(d1,r),[c,d]=pol(d2,r);return`M${a.toFixed(1)} ${b.toFixed(1)} A${r} ${r} 0 ${Math.abs(d2-d1)>180?1:0} 1 ${c.toFixed(1)} ${d.toFixed(1)}`};
+const c2d=c=>Math.max(-1,Math.min(1,c/50))*SPAN;
+function drawGauge(){
+  $('arcBg').setAttribute('d',arc(-SPAN-4,SPAN+4,R));
+  $('arcCol').setAttribute('d',arc(-SPAN,SPAN,R+19));
+  $('okZone').setAttribute('d',arc(c2d(-S.tol),c2d(S.tol),R));
+  let t='',l='';
+  for(let c=-50;c<=50;c+=5){const maj=c%25===0, mid=c%10===0;const r1=R-17,r2=R-17-(maj?16:mid?10:6);
+    const[a,b]=pol(c2d(c),r1),[x,y]=pol(c2d(c),r2);
+    t+=`<line x1="${a.toFixed(1)}" y1="${b.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${c===0?'#eef1f6':'#3a4252'}" stroke-width="${c===0?3:maj?2:1.3}" stroke-linecap="round"/>`;
+    if(maj){const[p,q]=pol(c2d(c),R-50);l+=`<text x="${p.toFixed(1)}" y="${(q+4).toFixed(1)}">${c>0?'+'+c:c}</text>`}}
+  $('ticks').innerHTML=t;$('tickLbls').innerHTML=l;
+}
+
+/* ================= pitch detection: YIN on decimated signal ================= */
+/*TRACKER-START*/
+/* YIN pitch detection with octave-error guard */
+function detectPitch(buf,sr,minF,maxF){
+  const tauMin=Math.max(2,Math.floor(sr/maxF)),tauMax=Math.min(Math.floor(sr/minF),(buf.length>>1)-2);
+  const W=buf.length-tauMax-2,d=new Float32Array(tauMax+2);
+  for(let tau=1;tau<=tauMax+1;tau++){let s=0;for(let i=0;i<W;i++){const x=buf[i]-buf[i+tau];s+=x*x}d[tau]=s}
+  let run=0;d[0]=1;for(let tau=1;tau<=tauMax+1;tau++){run+=d[tau];d[tau]=run?d[tau]*tau/run:1}
+  const THR=0.15;
+  const localMin=t=>{while(t+1<=tauMax&&d[t+1]<d[t])t++;while(t-1>=tauMin&&d[t-1]<d[t])t--;return t};
+  let tau=-1;
+  for(let t=tauMin;t<=tauMax;t++){if(d[t]<THR){tau=localMin(t);break}}
+  if(tau<0)return null;
+  // Octave guard: if a dip at 2x / 3x the period is clearly deeper, the real period is longer
+  // (happens when the 2nd harmonic outlives the fundamental, typical for electric guitar).
+  for(let k=2;k<=3;k++){
+    const c=Math.round(tau*k);if(c+2>tauMax)break;
+    let bt=c;for(let t=c-3;t<=c+3;t++)if(d[t]<d[bt])bt=t;
+    if(d[tau]>0.04&&d[bt]<d[tau]*0.7){tau=localMin(bt);break}
+  }
+  let bt=tau;
+  if(tau>1&&tau<tauMax){const a=d[tau-1],b=d[tau],c=d[tau+1],den=a+c-2*b;if(den>0)bt=tau+(a-c)/(2*den)}
+  return{freq:sr/bt,conf:1-d[tau]};
+}
+
+/* Tracker: note onsets, tail freezing, median + jump/octave rejection */
+class PitchTracker{
+  constructor(){this.reset()}
+  reset(){this.est=null;this.rd=[];this.cand=null;this.candN=0;this.slow=0;this.peak=0;
+    this.lastOnset=-1e9;this.hold=0;this.fresh=true;this.state='silent'}
+  step(frame,sr,rms,gate,now,minF,maxF,a4){
+    const prev=this.state;this.got=false;
+    let onset=false;
+    if(rms>gate&&rms>this.slow*1.7&&now-this.lastOnset>160)onset=true;
+    if(rms>gate&&(prev==='silent'||(prev==='tail'&&rms>this.peak*0.35)))onset=true;
+    this.slow=this.slow*0.92+rms*0.08;
+    if(onset){this.lastOnset=now;this.peak=rms;this.hold=now+75;this.fresh=true;this.rd=[];this.cand=null;this.candN=0}
+    if(rms>this.peak)this.peak=rms;
+    if(rms<gate){this.state='silent';return this.state}
+    if(rms<this.peak*0.1||(prev==='tail'&&!onset)){this.state='tail';return this.state} // decaying tail: freeze, no guessing
+    if(now<this.hold){this.state='hold';return this.state}               // skip the pick attack
+    this.state='track';
+    const r=detectPitch(frame,sr,minF,maxF);
+    if(!r||r.conf<0.88)return this.state;
+    this.got=true;
+    const m=69+12*Math.log2(r.freq/a4);
+    this.rd.push(m);if(this.rd.length>5)this.rd.shift();
+    const s=[...this.rd].sort((a,b)=>a-b),med=s[s.length>>1];
+    if(Math.abs(m-med)>0.5)return this.state;                          // single-frame outlier
+    if(this.est==null||this.fresh){
+      const l=this.rd.slice(-3);
+      if(l.length>=3&&Math.max(...l)-Math.min(...l)<0.35){l.sort((a,b)=>a-b);this.est=l[1];this.fresh=false}
+      return this.state;
+    }
+    const diff=med-this.est;
+    if(Math.abs(diff)<0.5){this.cand=null;this.candN=0;this.est+=diff*(Math.abs(diff)>0.12?0.5:0.25);return this.state}
+    // a ringing string cannot jump by an octave (or octave+fifth) — that is always a harmonic
+    if([12,-12,19,-19,24,-24].some(k=>Math.abs(diff-k)<0.7))return this.state;
+    if(this.cand!=null&&Math.abs(med-this.cand)<0.4){if(++this.candN>=8){this.est=med;this.cand=null;this.candN=0}}
+    else{this.cand=med;this.candN=1}
+    return this.state;
+  }
+}
+/*TRACKER-END*/
+const tracker=new PitchTracker();
+
+/* ================= audio ================= */
+let ac=null,an=null,stream=null,raw=null,dec=null,running=false,wakeLock=null;
+async function startMic(){
+  hideErr();
+  try{
+    const c={echoCancellation:false,noiseSuppression:false,autoGainControl:false};
+    if(S.device)c.deviceId={exact:S.device};
+    stream=await navigator.mediaDevices.getUserMedia({audio:c});
+  }catch(e){
+    if(S.device){S.device='';save();return startMic()}
+    showErr(e&&e.name==='NotAllowedError'?t('errDenied')
+      :t('errMic')+(e.message||e.name||e));return;
+  }
+  ac=ac||new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+  if(ac.state==='suspended')await ac.resume();
+  const src=ac.createMediaStreamSource(stream);
+  const hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=30;hp.Q.value=.7;
+  const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1800;lp.Q.value=.7;
+  an=ac.createAnalyser();an.fftSize=4096;an.smoothingTimeConstant=0;
+  src.connect(hp);hp.connect(lp);lp.connect(an);
+  raw=new Float32Array(an.fftSize);
+  running=true;lastHeard=performance.now();quietShown=false;$('micBtn').classList.add('on');$('micTxt').textContent=t('stop');
+  $('meter').classList.remove('idle');setStatus('wait');
+  if(S.wake&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch(e){}}
+  listDevices();
+}
+function stopMic(){
+  running=false;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;
+  $('micBtn').classList.remove('on');$('micTxt').textContent=t('start');$('lvl').style.width='0';
+  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}
+  $('meter').classList.add('idle');idleStatus();est=null;setAmp(0);
+}
+$('micBtn').onclick=()=>running?stopMic():startMic();
+document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&running&&S.wake&&'wakeLock'in navigator){try{wakeLock=await navigator.wakeLock.request('screen')}catch(e){}}});
+
+/* ================= tracking ================= */
+const OFF=()=>S.inton?12:0;
+let refUntil=0,quietShown=false;
+let est=null,lastHeard=0,okSince=0,noise=0.002,wasOk=false,lastOkAt=0;
+let needle=0,needleV=0,needleT=0;
+const hist=[];
+function resetTrack(){est=null;okSince=0;hist.length=0;tracker.reset()}
+
+function analyse(now){
+  an.getFloatTimeDomainData(raw);
+  let rms=0;for(let i=0;i<raw.length;i++)rms+=raw[i]*raw[i];rms=Math.sqrt(rms/raw.length);
+  $('lvl').style.width=Math.min(100,Math.sqrt(rms)*260)+'%';
+  if(rms<noise*3)noise=noise*.98+rms*.02;                      // adaptive noise floor
+  const gate=Math.max(0.0015,noise*(3.2-S.sens*0.2))*(11-S.sens)/5;
+  setAmp(rms<gate?0:Math.min(3,rms*60));
+  // never listen to our own reference tone
+  if(now<refUntil){if(!lastStatusKey.startsWith('ref'))setStatus('ref');tracker.reset();est=null;lastHeard=now;return}
+  if(refUntil){refUntil=0;lastHeard=now;setStatus('wait')}
+  const ds=ac.sampleRate>=32000?2:1,n=raw.length/ds|0;      // decimate x2 (already low-passed)
+  if(!dec||dec.length!==n)dec=new Float32Array(n);
+  if(ds===2)for(let i=0;i<n;i++)dec[i]=(raw[2*i]+raw[2*i+1])*.5;else dec.set(raw);
+  const lo=Math.min(...tuning.notes),hi=Math.max(...tuning.notes);
+  const st=tracker.step(dec,ac.sampleRate/ds,rms,gate,now,Math.max(28,fq(lo)*0.6),Math.min(1400,fq(hi)*2.2),S.a4);
+  if(tracker.got||st==='hold'||st==='tail'){lastHeard=now;quietShown=false}
+  if(st==='silent'||tracker.est==null){
+    if(est!=null&&now-lastHeard>2200){est=null;hist.push(null);setStatus('wait')}
+    else if(est==null&&!quietShown&&now-lastHeard>6000){quietShown=true;setStatus('quiet')}
+    else if(est!=null)hist.push(null);
+    return;
+  }
+  let e=tracker.est;
+  if(mode!=='auto'&&!S.inton){const t=tuning.notes[active];for(const k of[-12,12])if(Math.abs(e+k-t)<1.2&&Math.abs(e-t)>10.8)e+=k}
+  est=e;tracker.frozen=st==='tail';
+  update(now);
+}
+function pickString(){
+  if(mode!=='auto')return active;
+  let bi=active,bd=Math.abs(est-tuning.notes[active]-OFF())-0.35; // hysteresis
+  tuning.notes.forEach((m,i)=>{const dd=Math.abs(est-m-OFF());if(dd<bd){bd=dd;bi=i}});
+  return bi;
+}
+function update(now){
+  const i=pickString();
+  if(i!==active){active=i;renderStrings();okSince=0}
+  const tgt=tuning.notes[active]+OFF();
+  const cents=(est-tgt)*100;
+  needleT=cents;
+  hist.push(cents);if(hist.length>360)hist.shift();
+  const r=Math.round(est);
+  $('noteBig').innerHTML=noteHTML(r);
+  $('centsTag').textContent=(cents>=0?'+':'−')+Math.abs(cents).toFixed(Math.abs(cents)<10?1:0)+' '+t('cents');
+  $('hzTag').innerHTML=`<b>${(S.a4*Math.pow(2,(est-69)/12)).toFixed(1)}</b> ${t('hz')}`;
+  $('tgtTag').innerHTML=`${t('target')} <b>${plain(tgt)}${oc(tgt)}</b>`;
+  const a=Math.abs(cents);
+  const inTune=a<=S.tol||(wasOk&&a<=S.tol*2.2&&now-lastOkAt<900);
+  if(S.inton){ if(a>150){wasOk=false;setStatus('wait');return}
+    if(inTune){wasOk=true;lastOkAt=now;setStatus('iok',active)}else{wasOk=false;setStatus(cents<0?'iflat':'isharp',active,cents)} return }
+  if(inTune){wasOk=true;lastOkAt=now;
+    setStatus('ok',active);
+    if(!okSince)okSince=now;
+    if(now-okSince>550&&!done.has(active)){
+      done.add(active);renderStrings();buzz();
+      if(done.size===tuning.notes.length){toast(t('toastTuned',{t:tn(tuning)}))}
+      else if(mode==='guided'){const nx=nextUndone(active);setTimeout(()=>{if(mode==='guided'&&nx!=null){active=nx;resetTrack();renderStrings();setStatus('next',nx)}},650)}
+    }
+  }else{wasOk=false;okSince=0;setStatus(cents<0?'low':'high',active,cents)}
+}
+
+/* ================= status / visuals ================= */
+const ICONS={
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>',
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>',
+  ear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg>',
+  spk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>'};
+let lastStatusKey='';
+function stateColor(c){root.style.setProperty('--state',c)}
+function setStatus(kind,i,cents){
+  let key=kind+'|'+i+'|'+(cents!=null?Math.round(Math.abs(cents)/(Math.abs(cents)>60?25:5)):'');
+  if(key===lastStatusKey)return;lastStatusKey=key;
+  const s=i!=null?strNum(i):0;
+  const N=strNum(active);
+  if(kind==='ref'){stateColor('var(--accent)');$('stIco').innerHTML=ICONS.spk;$('st1').textContent=t('refPlaying');$('st2').textContent=t('refPlayingSub');return}
+  if(kind==='quiet'){stateColor('#5d6676');$('stIco').innerHTML=ICONS.ear;$('st1').textContent=t('quiet');$('st2').textContent=t('quietSub');return}
+  if(kind==='iok'){stateColor('var(--ok)');$('stIco').innerHTML=ICONS.ok;$('st1').textContent=t('intonOk',{n:s});$('st2').textContent=t('intonSub');return}
+  if(kind==='iflat'||kind==='isharp'){stateColor(kind==='iflat'?'var(--low)':'var(--high)');$('stIco').innerHTML=kind==='iflat'?ICONS.up:ICONS.down;
+    $('st1').textContent=t(kind==='iflat'?'intonFlat':'intonSharp',{n:s});$('st2').textContent=`${(cents>=0?'+':'−')+Math.abs(cents).toFixed(1)} ${t('cents')} · ${t('intonHint')}`;return}
+  if(kind==='wait'){stateColor('#5d6676');$('stIco').innerHTML=ICONS.ear;$('st1').textContent=t('listening');$('st2').textContent=S.inton?t('intonPluck',{n:N}):mode==='auto'?t('pluckAny'):t('pluckN',{n:N,note:plain(tuning.notes[active])});return}
+  if(kind==='next'){stateColor('#5d6676');$('stIco').innerHTML=ICONS.ear;$('st1').textContent=t('nowN',{n:s,note:plain(tuning.notes[i])});$('st2').textContent=t('whenReady');return}
+  if(kind==='ok'){stateColor('var(--ok)');$('stIco').innerHTML=ICONS.ok;$('st1').textContent=t('inTune',{n:s});$('st2').textContent=done.size===tuning.notes.length?t('allDone'):mode==='guided'?t('guidedNext'):t('canNext');return}
+  const low=kind==='low', st=Math.abs(cents)/100;
+  stateColor(low?'var(--low)':'var(--high)');
+  $('stIco').innerHTML=low?ICONS.up:ICONS.down;
+  $('st1').textContent=t(low?'tighten':'loosen',{n:s});
+  let how;
+  if(st>=0.75)how=t('moreSemis',{s:fmt(st),a:turns(st*.25),b:turns(st*.5)});
+  else if(Math.abs(cents)>20)how=t('bit');
+  else how=t('tiny');
+  $('st2').textContent=`${t(low?'soundsLow':'soundsHigh')} · ${how}`;
+}
+const fmt=x=>x.toFixed(1).replace('.',',');
+const turns=x=>x<.2?'⅛':x<.33?'¼':x<.6?'½':x<.85?'¾':fmt(x);
+function idleStatus(){stateColor('#5d6676');lastStatusKey='';$('stIco').innerHTML=ICONS.mic;$('st1').textContent=t('pressStart');
+  const m=tuning.notes[active];
+  $('st2').textContent=S.inton?t('intonPluck',{n:strNum(active)}):t('idleSub',{n:strNum(active),note:plain(m)+oc(m)});
+  $('noteBig').innerHTML=noteHTML(m);$('centsTag').textContent='— '+t('cents');$('hzTag').innerHTML=`<b>${fq(m).toFixed(1)}</b> ${t('hz')}`;$('tgtTag').innerHTML=t('target');needleT=0}
+function setAmp(a){document.querySelectorAll('.sRow.active .wire').forEach(w=>w.style.setProperty('--amp',a.toFixed(2)+'px'))}
+function showErr(t){const e=$('err');e.textContent=t;e.classList.add('show')}
+function hideErr(){$('err').classList.remove('show')}
+let tt;function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('show'),2600)}
+function buzz(){if(S.vib&&navigator.vibrate)try{navigator.vibrate(35)}catch(e){}
+  if(S.click&&ac){const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();o.frequency.value=1760;g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.12);o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+.13)}}
+
+/* ================= render loop ================= */
+const cv=$('trace'),cx=cv.getContext('2d');
+function sizeCanvas(){const dpr=Math.min(2,devicePixelRatio||1),r=cv.getBoundingClientRect();cv.width=r.width*dpr;cv.height=r.height*dpr;cx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',sizeCanvas);
+function drawTrace(){
+  const w=cv.clientWidth,h=cv.clientHeight;cx.clearRect(0,0,w,h);
+  const y=c=>h/2-Math.max(-50,Math.min(50,c))/50*(h/2-10);
+  cx.fillStyle='rgba(52,232,158,.10)';cx.fillRect(0,y(S.tol),w,y(-S.tol)-y(S.tol));
+  cx.strokeStyle='#262c38';cx.lineWidth=1;cx.beginPath();cx.moveTo(0,h/2);cx.lineTo(w,h/2);cx.stroke();
+  const N=240,pts=hist.slice(-N);if(!pts.length)return;
+  const step=w/(N-1),off=N-pts.length;
+  cx.lineWidth=2.2;cx.lineJoin='round';cx.lineCap='round';
+  let started=false;cx.beginPath();
+  pts.forEach((c,k)=>{if(c==null){started=false;return}const X=(off+k)*step,Y=y(c);if(!started){cx.moveTo(X,Y);started=true}else cx.lineTo(X,Y)});
+  const g=cx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#ffb347');g.addColorStop(.42,'#34e89e');g.addColorStop(.58,'#34e89e');g.addColorStop(1,'#4cc9ff');
+  cx.strokeStyle=g;cx.stroke();
+  const last=pts[pts.length-1];if(last!=null){cx.fillStyle='#eef1f6';cx.beginPath();cx.arc((off+pts.length-1)*step-3,y(last),3.5,0,7);cx.fill()}
+}
+let lastA=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  if(running&&an&&now-lastA>=14){lastA=now;analyse(now)}
+  // spring needle
+  const tgt=c2d(running&&est!=null?needleT:0);
+  const k=.22,damp=.62;needleV=(needleV+(tgt-needle)*k)*damp;needle+=needleV;
+  $('needle').setAttribute('transform',`rotate(${needle.toFixed(2)} ${CX} ${CY})`);
+  drawTrace();drawStrobe(now);
+}
+/* strobe */
+const sc=$('strobe'),sx=sc.getContext('2d');let sOff=0,lastSF=0,sColKey='',sPats=[];
+const SP=[46,30,20];                       // stripe periods, px
+function sizeStrobe(){const dpr=Math.min(2,devicePixelRatio||1),r=sc.getBoundingClientRect();if(!r.width)return;sc.width=Math.round(r.width*dpr);sc.height=Math.round(r.height*dpr);sx.setTransform(dpr,0,0,dpr,0,0);sColKey=''}
+addEventListener('resize',sizeStrobe);
+function stripeTile(period,col){ // soft-edged stripe (cos² profile) as a repeatable tile
+  const dpr=Math.min(2,devicePixelRatio||1),c=document.createElement('canvas');c.width=Math.round(period*dpr);c.height=2;
+  const g=c.getContext('2d'),gr=g.createLinearGradient(0,0,c.width,0);
+  for(let k=0;k<=24;k++){const x=k/24,a=Math.pow(Math.max(0,Math.cos((x-.5)*Math.PI*1.25)),2.2);gr.addColorStop(x,`rgba(${col},${a.toFixed(3)})`)}
+  g.fillStyle=gr;g.fillRect(0,0,c.width,2);return sx.createPattern(c,'repeat')}
+function rgbOf(css){const d=document.createElement('div');d.style.color=css;document.body.appendChild(d);const m=getComputedStyle(d).color.match(/\d+/g);d.remove();return m?m.slice(0,3).join(','):'93,102,118'}
+const RGB={};
+function drawStrobe(now){
+  const dt=Math.min(.05,(now-lastSF)/1000||0);lastSF=now;
+  if(S.view!=='strobe')return;
+  const w=sc.clientWidth,h=sc.clientHeight;if(!w)return;
+  sx.clearRect(0,0,w,h);
+  const has=running&&est!=null,cRaw=has?needleT:0,c=Math.max(-50,Math.min(50,cRaw)),inTune=has&&Math.abs(cRaw)<=S.tol;
+  const stateKey=!has?'idle':inTune?'ok':cRaw<0?'low':'high';
+  const css={idle:'#5d6676',ok:'#34e89e',low:'#4cc9ff',high:'#ffb347'}[stateKey];
+  const rgb=RGB[css]||(RGB[css]=rgbOf(css));
+  const ratio=Math.min(2,devicePixelRatio||1);
+  if(sColKey!==rgb+w+ratio){sColKey=rgb+w+ratio;sPats=SP.map(p=>stripeTile(p,rgb))}
+  // motion: ~5 px/s per cent, capped so stripes never smear into flicker
+  sOff+=c*5*dt;
+  const top=4,bandH=34,gap=8,areaH=bandH*3+gap*2,R=10;
+  // panel
+  sx.fillStyle='#0f1218';sx.beginPath();sx.roundRect?sx.roundRect(0,0,w,areaH+top*2,14):sx.rect(0,0,w,areaH+top*2);sx.fill();
+  if(inTune){sx.fillStyle='rgba(52,232,158,.07)';sx.fill()}
+  for(let b=0;b<3;b++){
+    const y=top+b*(bandH+gap),pat=sPats[b];
+    sx.save();sx.beginPath();sx.roundRect?sx.roundRect(6,y,w-12,bandH,R):sx.rect(6,y,w-12,bandH);sx.clip();
+    sx.fillStyle='rgba(255,255,255,.025)';sx.fillRect(6,y,w-12,bandH);
+    const m=new DOMMatrix();m.translateSelf(((sOff%SP[b])+SP[b])%SP[b],0);pat.setTransform(m);
+    sx.globalAlpha=has?(inTune?1:.92-b*.12):.16;sx.fillStyle=pat;sx.fillRect(6,y,w-12,bandH);
+    sx.restore();
+  }
+  // fade both edges
+  sx.save();sx.globalCompositeOperation='destination-out';
+  let g=sx.createLinearGradient(6,0,54,0);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');sx.fillStyle=g;sx.fillRect(6,top,48,areaH);
+  g=sx.createLinearGradient(w-54,0,w-6,0);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,1)');sx.fillStyle=g;sx.fillRect(w-54,top,48,areaH);
+  sx.restore();
+  // centre notches
+  sx.fillStyle='#eef1f6';sx.globalAlpha=.85;
+  sx.beginPath();sx.moveTo(w/2-6,0);sx.lineTo(w/2+6,0);sx.lineTo(w/2,7);sx.fill();
+  const yb=areaH+top*2;sx.beginPath();sx.moveTo(w/2-6,yb);sx.lineTo(w/2+6,yb);sx.lineTo(w/2,yb-7);sx.fill();sx.globalAlpha=1;
+  // cents bar
+  const by=yb+24,x0=22,x1=w-22,X=v=>x0+(v+50)/100*(x1-x0);
+  sx.lineCap='round';sx.strokeStyle='#262c38';sx.lineWidth=6;sx.beginPath();sx.moveTo(x0,by);sx.lineTo(x1,by);sx.stroke();
+  sx.strokeStyle='rgba(52,232,158,.55)';sx.beginPath();sx.moveTo(X(-S.tol),by);sx.lineTo(X(S.tol),by);sx.stroke();
+  sx.lineWidth=1.2;sx.strokeStyle='#3a4252';
+  for(let v=-50;v<=50;v+=10){const x=X(v),L=v===0?9:v%50===0?7:4;sx.beginPath();sx.moveTo(x,by-6-L);sx.lineTo(x,by-6);sx.stroke()}
+  sx.font='600 11px system-ui,sans-serif';sx.textAlign='center';sx.fillStyle='#5d6676';
+  sx.fillText('0',X(0),by+24);
+  sx.font='700 12px system-ui,sans-serif';sx.textAlign='left';sx.fillStyle='#4cc9ff';sx.fillText(t('low'),x0-4,by+24);
+  sx.textAlign='right';sx.fillStyle='#ffb347';sx.fillText(t('high'),x1+4,by+24);
+  // marker follows the same spring as the needle
+  const mv=Math.max(-50,Math.min(50,needle/SPAN*50)),mx=X(mv);
+  sx.fillStyle=`rgba(${rgb},${has?1:.5})`;sx.beginPath();sx.arc(mx,by,8,0,7);sx.fill();
+  sx.lineWidth=2.5;sx.strokeStyle='#eef1f6';sx.stroke();
+  if(has&&Math.abs(cRaw)>50){sx.fillStyle=`rgb(${rgb})`;const dir=cRaw<0?-1:1,ax=dir<0?x0-14:x1+14;sx.beginPath();sx.moveTo(ax,by);sx.lineTo(ax-dir*8,by-6);sx.lineTo(ax-dir*8,by+6);sx.fill()}
+}
+function setView(v){S.view=v;save();$('meter').classList.toggle('strobeView',v==='strobe');$('vNeedle').classList.toggle('on',v!=='strobe');$('vStrobe').classList.toggle('on',v==='strobe');requestAnimationFrame(sizeStrobe)}
+$('vNeedle').onclick=()=>setView('needle');$('vStrobe').onclick=()=>setView('strobe');
+/* intonation */
+function syncInton(){$('intonBtn').classList.toggle('on',S.inton);$('intonBtn').setAttribute('aria-pressed',S.inton);$('intonSw').setAttribute('aria-checked',S.inton)}
+$('intonBtn').onclick=()=>{S.inton=!S.inton;save();syncInton();resetTrack();lastStatusKey='';if(running)setStatus('wait');else idleStatus()};
+
+/* ================= reference tone: Karplus-Strong pluck ================= */
+let refSrc=null;
+/*REF-START*/
+// Exact-pitch reference: additive synthesis of pure integer harmonics (no delay-line error),
+// shaped like a plucked string: pick-position comb, brighter attack, higher partials decay faster.
+function renderPluck(freq,sr,dur){
+  const len=sr*dur|0,out=new Float32Array(len);
+  const H=Math.max(3,Math.min(14,Math.floor(4500/freq)));
+  for(let h=1;h<=H;h++){
+    const amp=Math.pow(h,-1.1)*(0.25+Math.abs(Math.sin(Math.PI*h*0.16)))*(h===1?1.6:1);
+    const dk=0.7+0.45*h+freq/400, w=2*Math.PI*freq*h/sr, e1=Math.exp(-dk/sr);
+    let env=amp;
+    for(let i=0;i<len;i++){out[i]+=env*Math.sin(w*i);env*=e1}
+  }
+  const att=Math.floor(sr*0.004);for(let i=0;i<att;i++)out[i]*=i/att;
+  let mx=0;for(let i=0;i<len;i++)mx=Math.max(mx,Math.abs(out[i]));for(let i=0;i<len;i++)out[i]/=mx||1;
+  return out;
+}
+/*REF-END*/
+function pluck(freq){
+  ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+  if(ac.state==='suspended')ac.resume();
+  const sr=ac.sampleRate,dur=3.2,buf=ac.createBuffer(1,sr*dur|0,sr);
+  buf.getChannelData(0).set(renderPluck(freq,sr,dur));
+  if(refSrc)try{refSrc.stop()}catch(e){}
+  const s=ac.createBufferSource(),g=ac.createGain();s.buffer=buf;g.gain.setValueAtTime(.55,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+dur);
+  s.connect(g);g.connect(ac.destination);s.start();refSrc=s;
+  $('refBtn').classList.add('playing');s.onended=()=>{if(refSrc===s)$('refBtn').classList.remove('playing')};
+}
+$('refBtn').onclick=()=>{if(refSrc&&performance.now()<refUntil){try{refSrc.stop()}catch(e){}$('refBtn').classList.remove('playing');refUntil=1;return}
+  pluck(fq(tuning.notes[active]));refUntil=performance.now()+3350;toast(t('toastRef',{n:strNum(active),note:plain(tuning.notes[active])+oc(tuning.notes[active])}))};
+
+/* ================= sheets ================= */
+let openSheet=null;
+function show(id){if(openSheet)hide();openSheet=$(id);openSheet.classList.add('show');$('scrim').classList.add('show')}
+function hide(){if(!openSheet)return;openSheet.classList.remove('show');$('scrim').classList.remove('show');openSheet=null}
+$('scrim').onclick=hide;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=hide);
+// swipe down to close (mobile)
+document.querySelectorAll('.sheet').forEach(sh=>{let y0=null;const head=sh.querySelector('.sheetHead');
+  const st=e=>{y0=e.touches[0].clientY};const mv=e=>{if(y0==null)return;const dy=e.touches[0].clientY-y0;if(dy>0&&innerWidth<700)sh.style.transform=`translate(-50%,${dy}px)`};
+  const en=e=>{if(y0==null)return;const dy=e.changedTouches[0].clientY-y0;sh.style.transform='';y0=null;if(dy>90&&innerWidth<700)hide()};
+  [head,sh.querySelector('.grab')].forEach(el=>{el.addEventListener('touchstart',st,{passive:true});el.addEventListener('touchmove',mv,{passive:true});el.addEventListener('touchend',en)})});
+
+/* picker */
+let cat='all';
+function renderCats(){$('cats').innerHTML='';CATS.forEach(([k,l])=>{if(k==='custom'&&!S.custom.length)return;const b=document.createElement('button');b.textContent=t(l);b.className=k===cat?'on':'';b.onclick=()=>{cat=k;renderCats();renderList()};$('cats').appendChild(b)})}
+function notesDiff(tt){const std=stdFor(tt);return tt.notes.map((m,i)=>{const d=m-std[i];return d<0?`<em>${plain(m)}</em>`:d>0?`<i>${plain(m)}</i>`:plain(m)}).join(' ')}
+const esc=x=>String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function renderList(){
+  const q=$('search').value.trim().toLowerCase().replace('♯','#');
+  let list=allT().filter(tt=>cat==='all'||(cat==='fav'?S.fav.includes(tt.id):tt.cat===cat));
+  if(q)list=list.filter(tt=>(tn(tt)+' '+tt.name+' '+tt.notes.map(plain).join(' ')+' '+td(tt)).toLowerCase().includes(q));
+  const box=$('tList');box.innerHTML='';
+  if(!list.length){box.innerHTML=`<div class="empty">${t('empty')}</div>`;return}
+  const groups=cat==='all'&&!q?CATS.filter(c=>!['all','fav'].includes(c[0])):[[null,null]];
+  groups.forEach(([gk,gl])=>{
+    const items=gk?list.filter(tt=>tt.cat===gk):list;if(!items.length)return;
+    if(gl){const h=document.createElement('div');h.className='grpLbl';h.textContent=t(gl);box.appendChild(h)}
+    items.forEach(tt=>{
+      const row=document.createElement('div');row.className='tItem'+(tt.id===tuning.id?' cur':'');row.setAttribute('role','button');row.tabIndex=0;
+      const fav=S.fav.includes(tt.id),desc=td(tt);
+      row.innerHTML=`<div><div class="n">${esc(tn(tt))}</div><div class="ns num">${notesDiff(tt)}${desc?` · <span style="letter-spacing:0">${esc(desc)}</span>`:''}</div></div>
+        <div class="r">${tt.cat==='custom'?`<button class="star edit" aria-label="${t('edit')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>`:''}
+        <button class="star${fav?' on':''}" aria-label="${t('fav')}"><svg viewBox="0 0 24 24" fill="${fav?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg></button></div>`;
+      row.onclick=e=>{const b=e.target.closest('button');
+        if(b&&b.classList.contains('edit')){openEditor(tt);return}
+        if(b){S.fav=fav?S.fav.filter(x=>x!==tt.id):[...S.fav,tt.id];save();renderList();return}
+        selectTuning(tt.id);hide();toast(t('toastTuning',{t:tn(tt)}))};
+      row.onkeydown=e=>{if(e.key==='Enter')row.click()};
+      box.appendChild(row)})});
+}
+$('search').oninput=renderList;
+function openPicker(){renderCats();renderList();show('picker');setTimeout(()=>{if(innerWidth>=700)$('search').focus()},250);
+  setTimeout(()=>{const c=$('tList').querySelector('.cur');if(c)c.scrollIntoView({block:'center'})},60)}
+$('openPicker').onclick=openPicker;$('pickBtn2').onclick=openPicker;
+
+/* editor */
+let edNotes=[],edId=null;
+const NOTE_RANGE=[];for(let m=pn('F#1');m<=pn('A4');m++)NOTE_RANGE.push(m);
+function openEditor(tt){
+  edId=tt&&tt.cat==='custom'?tt.id:null;
+  edNotes=tt?[...tt.notes]:[...tuning.notes];
+  $('edName').value=edId?tt.name:'';$('edTitle').textContent=t(edId?'edEdit':'edCustom');
+  $('edDelete').style.display=edId?'block':'none';
+  renderEd();show('editor');
+}
+function renderEd(){
+  $('ed6').classList.toggle('on',edNotes.length===6);$('ed7').classList.toggle('on',edNotes.length===7);
+  const box=$('edRows');box.innerHTML='';const std=edNotes.length===7?STD7:STD6;
+  for(let i=edNotes.length-1;i>=0;i--){
+    const r=document.createElement('div');r.className='edRow';
+    const d=edNotes[i]-std[i];
+    r.innerHTML=`<span class="sNum">${edNotes.length-i}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="stepper"><button data-d="-1" aria-label="${t('lower')}">−</button><output class="num" style="min-width:70px">${plain(edNotes[i])}${oc(edNotes[i])}</output><button data-d="1" aria-label="${t('higher')}">+</button></div>
+        <span class="chg ${d===0?'same':d<0?'down':'up'}">${d===0?t('stdShort'):(d<0?'−':'+')+Math.abs(d)+' '+t('semi')}</span>
+        <span class="num" style="font-size:12px;color:var(--dim);margin-inline-start:auto">${fq(edNotes[i]).toFixed(1)} ${t('hz')}</span></div>`;
+    r.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{edNotes[i]=Math.max(NOTE_RANGE[0],Math.min(NOTE_RANGE.at(-1),edNotes[i]+ +b.dataset.d));renderEd()});
+    box.appendChild(r)}
+}
+$('ed6').onclick=()=>{if(edNotes.length===7)edNotes=edNotes.slice(1);renderEd()};
+$('ed7').onclick=()=>{if(edNotes.length===6)edNotes=[edNotes[0]-5,...edNotes];renderEd()};
+$('edSave').onclick=()=>{
+  const name=$('edName').value.trim()||(t('myTuning')+': '+edNotes.map(plain).join(' '));
+  const obj={id:edId||('c'+Date.now().toString(36)),name,desc:'@dMine',notes:edNotes.slice()};
+  S.custom=S.custom.filter(c=>c.id!==obj.id).concat([obj]);save();selectTuning(obj.id);hide();toast(t('saved',{t:name}))};
+$('edDelete').onclick=()=>{S.custom=S.custom.filter(c=>c.id!==edId);S.fav=S.fav.filter(x=>x!==edId);if(S.tuning===edId)selectTuning('std');save();hide();toast(t('deleted'))};
+$('newCustom').onclick=()=>openEditor(null);
+
+/* settings */
+function syncSettings(){$('a4o').textContent=S.a4+' '+t('hz');$('tolSel').value=S.tol;$('sens').value=S.sens;
+  $('swVib').setAttribute('aria-checked',S.vib);$('swWake').setAttribute('aria-checked',S.wake);$('swClick').setAttribute('aria-checked',S.click)}
+$('openSettings').onclick=()=>{syncSettings();listDevices();show('settings')};
+const a4set=v=>{S.a4=Math.max(415,Math.min(466,v));save();syncSettings();renderStrings();drawGauge()};
+$('a4m').onclick=()=>a4set(S.a4-1);$('a4p').onclick=()=>a4set(S.a4+1);
+$('tolSel').onchange=e=>{S.tol=+e.target.value;save();drawGauge()};
+$('sens').oninput=e=>{S.sens=+e.target.value;save()};
+[['swVib','vib'],['swWake','wake'],['swClick','click']].forEach(([id,k])=>$(id).onclick=()=>{S[k]=!S[k];save();syncSettings()});
+async function listDevices(){
+  try{const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput');
+    const sel=$('devSel');sel.innerHTML=`<option value="">${t('defaultDev')}</option>`+ds.filter(d=>d.deviceId&&d.deviceId!=='default').map((d,k)=>`<option value="${d.deviceId}">${d.label||t('micN',{n:k+1})}</option>`).join('');
+    sel.value=S.device||''}catch(e){}
+}
+$('devSel').onchange=async e=>{S.device=e.target.value;save();if(running){stopMic();await startMic()}};
+
+/* keyboard */
+addEventListener('keydown',e=>{
+  if(e.target.matches('input,select,textarea'))return;
+  if(e.key==='Escape'){hide();return}
+  if(openSheet)return;
+  if(e.code==='Space'){e.preventDefault();$('micBtn').click()}
+  else if(/^[1-7]$/.test(e.key)){const s=+e.key;if(s<=tuning.notes.length){active=tuning.notes.length-s;if(mode==='auto')setMode('manual');renderStrings();resetTrack();if(!running)idleStatus()}}
+  else if(e.code==='KeyR')$('refBtn').click();
+  else if(e.code==='KeyT')openPicker();
+});
+
+/* language */
+function pickLang(){const want=(S.lang||navigator.language||'en').toLowerCase().split('-')[0];return I18N[want]?want:'en'}
+function applyLang(){
+  LANG=pickLang();const ar=LANG==='ar';
+  document.documentElement.lang=LANG;document.documentElement.dir=ar?'rtl':'ltr';document.title=t('title');
+  document.querySelectorAll('[data-i]').forEach(e=>e.textContent=t(e.dataset.i));
+  document.querySelectorAll('[data-ih]').forEach(e=>e.innerHTML=t(e.dataset.ih));
+  document.querySelectorAll('[data-ia]').forEach(e=>e.setAttribute('aria-label',t(e.dataset.ia)));
+  document.querySelectorAll('[data-it]').forEach(e=>e.title=t(e.dataset.it));
+  document.querySelectorAll('[data-ip]').forEach(e=>e.placeholder=t(e.dataset.ip));
+  $('micTxt').textContent=t(running?'stop':'start');
+  $('year').textContent=new Date().getFullYear();
+  $('credit').innerHTML=esc(t('madeBy',{n:'\u0000'})).replace('\u0000','<b>xnyokki</b>');
+  const ls=$('langSel');ls.innerHTML=LANGS.map(([c,n])=>`<option value="${c}">${n}</option>`).join('');ls.value=LANG;
+  renderTuning();syncSettings();lastStatusKey='';if(!running)idleStatus();else setStatus('wait');
+  if(openSheet&&openSheet.id==='picker'){renderCats();renderList()}
+  if(openSheet&&openSheet.id==='editor'){$('edTitle').textContent=t(edId?'edEdit':'edCustom');renderEd()}
+  listDevices();
+}
+$('langSel').onchange=e=>{S.lang=e.target.value;save();applyLang()};
+
+/* init */
+applyLang();drawGauge();setView(S.view);syncInton();sizeCanvas();requestAnimationFrame(frame);
+if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)showErr(t('errNoApi'));
+
+/* offline support (works on https / localhost) */
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>
